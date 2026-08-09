@@ -129,3 +129,46 @@ pio device monitor -b 115200
 4. Set **Partition Scheme**: `Minimal SPIFFS (Large APPS with OTA)`.
 5. Set **PSRAM**: `Enabled`.
 6. Upload `src/main.cpp`.
+
+---
+
+## 7. Multi-Computer Workflow & Git Worktrees
+
+The repository is hosted on GitHub at [github.com/markirgang/TweedPumpHouse](https://github.com/markirgang/TweedPumpHouse).
+
+### A. Setting Up on a New Computer
+To clone and work on this project from any other PC, laptop, or Mac:
+```bash
+git clone https://github.com/markirgang/TweedPumpHouse.git
+cd TweedPumpHouse
+```
+
+### B. Daily Synchronization Across Computers
+Before you start working on any computer:
+```bash
+git pull origin main
+```
+
+When you finish your changes on that computer:
+```bash
+git add .
+git commit -m "Describe your changes"
+git push origin main
+```
+
+### C. Using Git Worktrees (Work on Multiple Branches Simultaneously)
+If you want to test new firmware experiments or UI redesigns in parallel directories without switching branches back and forth:
+```bash
+# 1. Create and checkout a new branch in a separate working folder:
+git worktree add ../TweedPumpHouse-dev -b dev
+
+# 2. List all active worktrees across your machine:
+git worktree list
+
+# 3. When finished with that worktree folder:
+git worktree remove ../TweedPumpHouse-dev
+```
+
+> [!TIP]
+> **OneDrive Sync Recommendation**: If cloning on a second machine, it is recommended to clone into a local non-cloud directory (e.g. `C:\Projects\TweedPumpHouse` or `~/Projects/TweedPumpHouse`) rather than an active cloud-sync folder to ensure OneDrive background file locks do not conflict with local Git operations.
+
