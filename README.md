@@ -127,12 +127,13 @@ pio device monitor -b 115200
 ```
 
 ### Using Arduino IDE:
-1. Install ESP32 board support (`esp32` by Espressif).
-2. Install libraries: `LovyanGFX`, `ArduinoJson`, `DHT sensor library`, `ESPAsyncWebServer`, `AsyncTCP`.
-3. Select board: **ESP32 Wrover Module** (or WT32-SC01 board profile).
-4. Set **Partition Scheme**: `Minimal SPIFFS (Large APPS with OTA)`.
-5. Set **PSRAM**: `Enabled`.
-6. Upload `src/main.cpp`.
+1. Open **[`arduino/TweedPumpHouse/TweedPumpHouse.ino`](file:///arduino/TweedPumpHouse/TweedPumpHouse.ino)** in Arduino IDE.
+2. Install ESP32 board support (`esp32` by Espressif).
+3. Install required libraries: `LovyanGFX`, `ArduinoJson`, `DHT sensor library`, `Adafruit Unified Sensor`, `ESPAsyncWebServer`, `AsyncTCP`.
+4. Select board: **ESP32 Wrover Module** (or WT32-SC01 board profile).
+5. Set **Partition Scheme**: `Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)` or `Huge APP (3MB No OTA/1MB SPIFFS)`.
+6. Set **PSRAM**: `Enabled`.
+7. Click **Upload** (`Ctrl + U`).
 
 ---
 
