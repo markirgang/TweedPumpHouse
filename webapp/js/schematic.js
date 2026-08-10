@@ -1,6 +1,12 @@
 /**
  * Tweed Boulevard / Route 9W Water System
  * Interactive Animated Pipeline & Holding Tank Schematic (HTML5 Canvas)
+ * 
+ * Demonstrates:
+ * - Fill pipe between Line Valve / Pump in Route 9W Pump Room and Tweed Blvd Tank
+ * - Shared Relay (GPIO 2) controlling Line Valve & Fill Pipe Drain Valve
+ * - Dynamic Draining Animation when Relay is de-energized (Line Valve Closed / Drain Valve Open)
+ * - Freeze Protection & Tank High / Tank Low automated fill rules
  */
 
 class SystemSchematic {
@@ -10,8 +16,15 @@ class SystemSchematic {
     this.ctx = this.canvas.getContext('2d');
     
     this.particles = [];
+    this.drainParticles = [];
+    this.drainSplashes = [];
+    this.tankSplashes = [];
     this.impellerAngle = 0;
     this.wavePhase = 0;
+    this.wirePulse = 0;
+    
+    // Smooth fluid column level in the fill pipe (0.0 = completely dry, 1.0 = completely full)
+    this.pipeWaterLevel = 0.0;
     
     // Telemetry cache
     this.state = {
@@ -20,6 +33,8 @@ class SystemSchematic {
       tankHigh: true,
       freezeSensor: false,
       lineValve: false,
+      drainValve: true,
+      relayPower: false,
       pump: false,
       alarm: false,
       temperatureF: 68.0,
@@ -43,12 +58,49 @@ class SystemSchematic {
   }
 
   initParticles() {
+    // Flow particles going uphill
     this.particles = [];
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 35; i++) {
       this.particles.push({
         progress: Math.random(),
-        speed: 0.004 + Math.random() * 0.003,
-        size: 3 + Math.random() * 2
+        speed: 0.005 + Math.random() * 0.004,
+        size: 2.5 + Math.random() * 2
+      });
+    }
+
+    // Draining particles rushing downhill
+    this.drainParticles = [];
+    for (let i = 0; i < 25; i++) {
+      this.drainParticles.push({
+        progress: Math.random(),
+        speed: 0.012 + Math.random() * 0.008,
+        size: 2.0 + Math.random() * 2
+      });
+    }
+
+    // Drain discharge splashes
+    this.drainSplashes = [];
+    for (let i = 0; i < 20; i++) {
+      this.drainSplashes.push({
+        x: 0,
+        y: 0,
+        vx: (Math.random() - 0.5) * 2.5,
+        vy: Math.random() * 2 + 1,
+        life: Math.random(),
+        size: 1.5 + Math.random() * 1.8
+      });
+    }
+
+    // Tank inlet drop splashes
+    this.tankSplashes = [];
+    for (let i = 0; i < 15; i++) {
+      this.tankSplashes.push({
+        x: 0,
+        y: 0,
+        vx: (Math.random() - 0.5) * 2.0,
+        vy: Math.random() * 1.5 + 1.0,
+        life: Math.random(),
+        size: 1.5 + Math.random() * 1.5
       });
     }
   }
@@ -63,10 +115,20 @@ class SystemSchematic {
 
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.wavePhase += 0.04;
+    this.wirePulse = (this.wirePulse + 0.06) % (Math.PI * 2);
+
+    // Dynamic pipe fluid level transition:
+    // When Relay is energized (Line Valve OPEN / Drain Valve CLOSED), fill pipe hydrates
+    if (this.state.lineValve) {
+      this.pipeWaterLevel = Math.min(1.0, this.pipeWaterLevel + 0.02);
+    } else {
+      // When Relay is de-energized (Line Valve CLOSED / Drain Valve OPEN), fill pipe drains
+      this.pipeWaterLevel = Math.max(0.0, this.pipeWaterLevel - 0.012);
+    }
 
     // Pump impeller rotation
     if (this.state.pump) {
-      this.impellerAngle += 0.15;
+      this.impellerAngle += 0.20;
     }
 
     // Render Components
@@ -74,6 +136,7 @@ class SystemSchematic {
     this.drawPumpRoom();
     this.drawHoldingTank();
     this.drawWaterFlowParticles();
+    this.drawDrainingDischarge();
   }
 
   drawTerrainAndPipes() {
@@ -81,112 +144,377 @@ class SystemSchematic {
     const w = this.width;
     const h = this.height;
 
-    // Hillside gradient line (Route 9W bottom left to Tweed Blvd top right)
+    // Mountain hill gradient profile (Route 9W at bottom left to Tweed Blvd top right)
     ctx.save();
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
+    // Hill fill polygon
+    const hillGrad = ctx.createLinearGradient(0, h, w, 0);
+    hillGrad.addColorStop(0, 'rgba(15, 23, 42, 0.6)');
+    hillGrad.addColorStop(1, 'rgba(30, 41, 59, 0.4)');
+    ctx.fillStyle = hillGrad;
     ctx.beginPath();
-    ctx.moveTo(30, h - 40);
-    ctx.lineTo(w * 0.45, h - 80);
-    ctx.lineTo(w - 60, 80);
+    ctx.moveTo(0, h);
+    ctx.lineTo(0, h - 50);
+    ctx.lineTo(w * 0.28, h - 85);
+    ctx.lineTo(w * 0.72, 175);
+    ctx.lineTo(w, 140);
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Elevation dash line
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(30, h - 45);
+    ctx.lineTo(w * 0.32, h - 90);
+    ctx.lineTo(w * 0.75, 170);
+    ctx.lineTo(w - 30, 135);
     ctx.stroke();
     ctx.restore();
 
-    // The Water Fill Pipe Path
-    const p1 = { x: 90, y: h - 90 };      // Municipal supply entry
-    const p2 = { x: 170, y: h - 90 };     // Valve
-    const p3 = { x: 250, y: h - 90 };     // Pump
-    const p4 = { x: 310, y: h - 90 };     // Exit Pump Room
-    const p5 = { x: w - 170, y: 150 };    // Base of Holding Tank
-
-    this.pipePath = [p1, p2, p3, p4, p5];
-
-    // Draw Main Pipe Body
+    // Elevation Elevation Tags
     ctx.save();
-    ctx.strokeStyle = this.state.freezeSensor ? '#3b82f6' : '#1e293b';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText('ROUTE 9W BASE (ELEVATION ~120 FT)', 50, h - 18);
+    ctx.fillText('TWEED BLVD RIDGE (ELEVATION ~580 FT)', w - 240, 25);
+    ctx.restore();
+
+    // -------------------------------------------------------------
+    // Define Pipe Path Coordinates
+    // -------------------------------------------------------------
+    const p1 = { x: 50, y: h - 100 };       // Municipal supply entry
+    const p2 = { x: 125, y: h - 100 };      // Line Valve
+    const pTee = { x: 175, y: h - 100 };    // Manifold Tee (Drain Valve branch)
+    const p3 = { x: 250, y: h - 100 };      // Water Pump
+    const p4 = { x: 330, y: h - 100 };      // Exit Pump Room
+    const p5 = { x: w - 200, y: 160 };      // Base of Tweed Blvd Holding Tank
+    const p6 = { x: w - 200, y: 70 };       // Riser up side of tank
+    const p7 = { x: w - 165, y: 70 };       // Tank top inlet drop
+
+    this.municipalPath = [p1, p2];
+    this.fillPipePath = [p2, pTee, p3, p4, p5, p6, p7];
+    this.drainBranchPath = [pTee, { x: 175, y: h - 60 }, { x: 175, y: h - 35 }];
+
+    // 1. Draw Municipal Supply Pipe (Always connected to 9W pressure)
+    ctx.save();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+
+    // Municipal live water inside pipe
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.6)';
+    ctx.lineWidth = 7;
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Draw Fill Pipe Outer Casing (Exposed Uphill Pipeline)
+    ctx.save();
+    const isFreezeAlert = this.state.freezeSensor;
+    ctx.strokeStyle = isFreezeAlert ? '#2563eb' : '#1e293b';
     ctx.lineWidth = 14;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.lineTo(p2.x, p2.y);
-    ctx.lineTo(p3.x, p3.y);
-    ctx.lineTo(p4.x, p4.y);
-    ctx.lineTo(p5.x, p5.y);
-    ctx.lineTo(p5.x + 30, p5.y - 30);
+    ctx.moveTo(p2.x, p2.y);
+    for (let i = 1; i < this.fillPipePath.length; i++) {
+      ctx.lineTo(this.fillPipePath[i].x, this.fillPipePath[i].y);
+    }
     ctx.stroke();
 
-    // Pipe Interior Glow if Water is Flowing
-    const isWaterFlowing = this.state.lineValve;
-    if (isWaterFlowing) {
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-      ctx.lineWidth = 8;
-      ctx.stroke();
-    }
+    // 3. Draw Drain Branch Pipe Casing
+    ctx.beginPath();
+    ctx.moveTo(pTee.x, pTee.y);
+    ctx.lineTo(175, h - 35);
+    ctx.stroke();
     ctx.restore();
 
-    // Pipe Freeze Warning crystals if freeze sensor active
-    if (this.state.freezeSensor) {
-      ctx.save();
-      ctx.fillStyle = '#93c5fd';
-      ctx.font = '11px sans-serif';
-      ctx.fillText('❄ FREEZE HAZARD: <40°F (PIPE ISOLATED)', (p4.x + p5.x) / 2 - 80, (p4.y + p5.y) / 2 - 14);
-      ctx.restore();
+    // 4. Draw Water Column Inside Fill Pipe Based on pipeWaterLevel
+    if (this.pipeWaterLevel > 0.001) {
+      this.drawFillPipeWaterColumn();
     }
+
+    // 5. Pipe Status Overlays & Freeze Warnings
+    ctx.save();
+    const midX = (p4.x + p5.x) / 2 - 40;
+    const midY = (p4.y + p5.y) / 2 - 18;
+
+    if (this.state.lineValve && this.pipeWaterLevel > 0.2) {
+      // Flowing
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 9px sans-serif';
+      const modeText = this.state.pump ? '▲ FILL PIPE: WATER FLOWING UPHILL (PUMP BOOST)' : '▲ FILL PIPE: WATER FLOWING UPHILL (MUNICIPAL PRESSURE)';
+      ctx.fillText(modeText, midX - 60, midY);
+    } else if (!this.state.lineValve && this.pipeWaterLevel > 0.01) {
+      // Draining
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('▼ FILL PIPE: DRAINING DOWN TO PUMP HOUSE DRAIN VALVE', midX - 80, midY);
+    } else if (isFreezeAlert) {
+      // Freeze safe / drained
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('❄ FREEZE SAFE: FILL PIPE DRAINED & ISOLATED (<40°F)', midX - 80, midY);
+    } else if (!this.state.tankHigh) {
+      // Full / Drained
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('✔ TANK FULL: FILL PIPE DRAINED & ISOLATED', midX - 50, midY);
+    } else {
+      // Standby / Drained
+      ctx.fillStyle = '#64748b';
+      ctx.font = '9px sans-serif';
+      ctx.fillText('FILL PIPE: STANDBY (DRAINED)', midX - 20, midY);
+    }
+    ctx.restore();
+  }
+
+  drawFillPipeWaterColumn() {
+    const ctx = this.ctx;
+    const path = this.fillPipePath;
+    const level = this.pipeWaterLevel; // 0.0 to 1.0
+
+    // Compute total length of fill pipe path
+    let totalLen = 0;
+    const segLens = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const dx = path[i+1].x - path[i].x;
+      const dy = path[i+1].y - path[i].y;
+      const len = Math.hypot(dx, dy);
+      segLens.push(len);
+      totalLen += len;
+    }
+
+    const waterTargetLen = totalLen * level;
+    let accumulated = 0;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+
+    for (let i = 0; i < segLens.length; i++) {
+      const segLen = segLens[i];
+      if (accumulated + segLen <= waterTargetLen) {
+        ctx.lineTo(path[i+1].x, path[i+1].y);
+        accumulated += segLen;
+      } else {
+        const remain = waterTargetLen - accumulated;
+        const ratio = remain / segLen;
+        const targetX = path[i].x + (path[i+1].x - path[i].x) * ratio;
+        const targetY = path[i].y + (path[i+1].y - path[i].y) * ratio;
+        ctx.lineTo(targetX, targetY);
+        break;
+      }
+    }
+    ctx.stroke();
+
+    // If draining, also draw water in the drain vertical pipe
+    if (!this.state.lineValve && this.pipeWaterLevel > 0.01) {
+      ctx.beginPath();
+      ctx.moveTo(175, this.height - 100);
+      ctx.lineTo(175, this.height - 35);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   drawPumpRoom() {
     const ctx = this.ctx;
     const h = this.height;
 
-    // Pump Room Enclosure
-    const rx = 60, ry = h - 165, rw = 265, rh = 135;
+    // Pump Room Enclosure Box
+    const rx = 45, ry = h - 195, rw = 300, rh = 175;
     ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
     ctx.lineWidth = 1.5;
-    ctx.roundRect(rx, ry, rw, rh, 10);
+    ctx.roundRect(rx, ry, rw, rh, 12);
     ctx.fill();
     ctx.stroke();
 
-    // Labels
+    // Room Label
     ctx.fillStyle = '#94a3b8';
     ctx.font = 'bold 10px sans-serif';
-    ctx.fillText('PUMP ROOM (ROUTE 9W ELEVATION)', rx + 14, ry + 20);
+    ctx.fillText('PUMP ROOM (ROUTE 9W ELEVATION)', rx + 14, ry + 18);
 
-    // Municipal Main Tag
+    // Municipal Supply Tag
     ctx.fillStyle = '#38bdf8';
-    ctx.fillText('MUNICIPAL SUPPLY 9W', rx - 10, ry + rh + 18);
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText('MUNICIPAL 9W', rx - 5, h - 114);
 
-    // 1. Line Valve Visual
-    const vx = 170, vy = h - 90;
+    // =========================================================================
+    // 1. SHARED RELAY MODULE (GPIO 2)
+    // =========================================================================
+    const relayX = rx + 80, relayY = ry + 28, relayW = 100, relayH = 26;
+    const relayOn = this.state.lineValve; // Relay powered when Line Valve is on
+
+    ctx.fillStyle = relayOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(30, 41, 59, 0.8)';
+    ctx.strokeStyle = relayOn ? '#10b981' : '#475569';
+    ctx.lineWidth = 1.5;
+    if (relayOn) {
+      ctx.shadowColor = '#10b981';
+      ctx.shadowBlur = 8;
+    }
+    ctx.roundRect(relayX, relayY, relayW, relayH, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Relay Status LED
+    ctx.fillStyle = relayOn ? '#34d399' : '#64748b';
+    ctx.beginPath();
+    ctx.arc(relayX + 12, relayY + relayH / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Relay Text
+    ctx.fillStyle = relayOn ? '#a7f3d0' : '#94a3b8';
+    ctx.font = 'bold 8.5px sans-serif';
+    ctx.fillText(relayOn ? 'RELAY: POWER ON' : 'RELAY: POWER OFF', relayX + 22, relayY + 16);
+
+    // Relay GPIO 2 Subtitle
+    ctx.fillStyle = '#64748b';
+    ctx.font = '7.5px sans-serif';
+    ctx.fillText('GPIO 2 (SHARED)', relayX + 22, relayY + 24);
+
+    // -------------------------------------------------------------
+    // Relay Wiring Traces to Line Valve & Drain Valve
+    // -------------------------------------------------------------
+    ctx.save();
+    ctx.strokeStyle = relayOn ? '#fbbf24' : '#475569';
+    ctx.lineWidth = 1.5;
+    if (relayOn) {
+      ctx.setLineDash([4, 3]);
+      ctx.lineDashOffset = -this.wirePulse * 4;
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 6;
+    }
+
+    // Wire 1 -> Line Valve Solenoid
+    ctx.beginPath();
+    ctx.moveTo(relayX + 25, relayY + relayH);
+    ctx.lineTo(125, h - 122);
+    ctx.stroke();
+
+    // Wire 2 -> Drain Valve Solenoid
+    ctx.beginPath();
+    ctx.moveTo(relayX + 75, relayY + relayH);
+    ctx.lineTo(relayX + 75, h - 70);
+    ctx.lineTo(175 + 10, h - 60);
+    ctx.stroke();
+    ctx.restore();
+
+    // =========================================================================
+    // 2. LINE VALVE (Normally Closed Solenoid, Powered = OPEN)
+    // =========================================================================
+    const vx = 125, vy = h - 100;
     const valveOpen = this.state.lineValve;
+
     ctx.save();
     ctx.fillStyle = valveOpen ? '#10b981' : '#64748b';
     ctx.strokeStyle = valveOpen ? '#34d399' : '#94a3b8';
     ctx.lineWidth = 2;
+
     // Valve Bowtie
     ctx.beginPath();
-    ctx.moveTo(vx - 14, vy - 14);
-    ctx.lineTo(vx + 14, vy + 14);
-    ctx.lineTo(vx + 14, vy - 14);
-    ctx.lineTo(vx - 14, vy + 14);
+    ctx.moveTo(vx - 12, vy - 12);
+    ctx.lineTo(vx + 12, vy + 12);
+    ctx.lineTo(vx + 12, vy - 12);
+    ctx.lineTo(vx - 12, vy + 12);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Solenoid actuator on top of valve
+    // Solenoid Coil on top of Line Valve
     ctx.fillStyle = valveOpen ? '#059669' : '#334155';
-    ctx.fillRect(vx - 6, vy - 24, 12, 10);
+    ctx.fillRect(vx - 6, vy - 22, 12, 10);
+    ctx.strokeStyle = valveOpen ? '#34d399' : '#64748b';
+    ctx.strokeRect(vx - 6, vy - 22, 12, 10);
     ctx.restore();
 
+    // Line Valve Text Label
     ctx.fillStyle = valveOpen ? '#34d399' : '#94a3b8';
-    ctx.font = '9px sans-serif';
-    ctx.fillText(valveOpen ? 'VALVE: OPEN' : 'VALVE: CLOSED', vx - 26, vy + 28);
+    ctx.font = 'bold 8.5px sans-serif';
+    ctx.fillText(valveOpen ? 'LINE VALVE: OPEN' : 'LINE VALVE: CLOSED', vx - 36, vy + 24);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '7.5px sans-serif';
+    ctx.fillText(valveOpen ? '(ENERGIZED)' : '(NO POWER)', vx - 20, vy + 33);
 
-    // 2. Water Pump Visual
-    const px = 250, py = h - 90;
+    // =========================================================================
+    // 3. FILL PIPE DRAIN VALVE (Normally Open, Powered = CLOSED)
+    // =========================================================================
+    const dvx = 175, dvy = h - 60;
+    const drainOpen = !this.state.lineValve; // Drain valve is open when relay is unpowered
+
+    ctx.save();
+    ctx.fillStyle = drainOpen ? '#f59e0b' : '#10b981';
+    ctx.strokeStyle = drainOpen ? '#fbbf24' : '#34d399';
+    ctx.lineWidth = 1.8;
+
+    // Drain Valve Bowtie
+    ctx.beginPath();
+    ctx.moveTo(dvx - 10, dvy - 10);
+    ctx.lineTo(dvx + 10, dvy + 10);
+    ctx.lineTo(dvx + 10, dvy - 10);
+    ctx.lineTo(dvx - 10, dvy + 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Solenoid Coil for Drain Valve
+    ctx.fillStyle = drainOpen ? '#78350f' : '#059669';
+    ctx.fillRect(dvx + 10, dvy - 5, 8, 10);
+    ctx.strokeStyle = drainOpen ? '#fbbf24' : '#34d399';
+    ctx.strokeRect(dvx + 10, dvy - 5, 8, 10);
+    ctx.restore();
+
+    // Drain Discharge Spout & Floor Sump
+    ctx.save();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(dvx, dvy + 10);
+    ctx.lineTo(dvx, h - 35);
+    ctx.stroke();
+
+    // Floor Sump Basin
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+    ctx.strokeStyle = drainOpen && this.pipeWaterLevel > 0.01 ? '#38bdf8' : '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(dvx - 22, h - 35, 44, 14, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Drain Text Label
+    ctx.fillStyle = drainOpen ? '#fbbf24' : '#34d399';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.fillText(drainOpen ? 'DRAIN: OPEN' : 'DRAIN: CLOSED', dvx - 52, dvy + 2);
+    ctx.fillStyle = drainOpen ? '#fde68a' : '#64748b';
+    ctx.font = '7px sans-serif';
+    ctx.fillText(drainOpen ? '(DRAINING PIPE)' : '(SEALED)', dvx - 52, dvy + 10);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '7.5px sans-serif';
+    ctx.fillText('DRAIN SUMP', dvx - 18, h - 24);
+    ctx.restore();
+
+    // =========================================================================
+    // 4. WATER PUMP VISUAL
+    // =========================================================================
+    const px = 255, py = h - 100;
     const pumpOn = this.state.pump;
     const hasFault = (this.state.pumpOvercurrentTrip || this.state.pumpUndercurrentTrip);
     
@@ -211,7 +539,7 @@ class SystemSchematic {
     }
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(px, py, 20, 0, Math.PI * 2);
+    ctx.arc(px, py, 18, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -221,67 +549,69 @@ class SystemSchematic {
     ctx.translate(px, py);
     ctx.rotate(this.impellerAngle);
     ctx.strokeStyle = pumpOn ? '#fff' : '#64748b';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.2;
     for (let i = 0; i < 4; i++) {
       ctx.rotate(Math.PI / 2);
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(14, 0);
+      ctx.lineTo(13, 0);
       ctx.stroke();
     }
     ctx.restore();
 
-    // Pump Status Label & On-Time Ticker
+    // Pump Status Label
     ctx.save();
-    ctx.font = '9px sans-serif';
+    ctx.font = 'bold 8.5px sans-serif';
     if (this.state.pumpOvercurrentTrip) {
       ctx.fillStyle = '#f87171';
-      ctx.fillText('PUMP: OVERLOAD TRIP!', px - 38, py + 34);
+      ctx.fillText('PUMP: OVERLOAD TRIP!', px - 36, py + 26);
     } else if (this.state.pumpUndercurrentTrip) {
       ctx.fillStyle = '#fbbf24';
-      ctx.fillText('PUMP: DRY RUN TRIP!', px - 36, py + 34);
+      ctx.fillText('PUMP: DRY RUN TRIP!', px - 34, py + 26);
     } else if (pumpOn) {
       ctx.fillStyle = '#38bdf8';
       const elapsed = this.state.pumpRunElapsedSec || 0;
       const mm = Math.floor(elapsed / 60).toString().padStart(2, '0');
       const ss = (elapsed % 60).toString().padStart(2, '0');
-      ctx.fillText(`PUMP ON: ${mm}:${ss}`, px - 28, py + 34);
+      ctx.fillText(`PUMP ON: ${mm}:${ss}`, px - 26, py + 26);
     } else if (this.state.pumpTimingState === 2) {
       ctx.fillStyle = '#fbbf24';
-      ctx.fillText('PUMP: TIMED OUT', px - 30, py + 34);
+      ctx.fillText('PUMP: TIMED OUT', px - 28, py + 26);
     } else {
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText('PUMP: OFF', px - 20, py + 34);
+      ctx.fillText('PUMP: OFF', px - 18, py + 26);
     }
     ctx.restore();
 
-    // 2B. Pump Current Monitor Module (Above Pump)
-    const csx = px, csy = py - 36;
+    // Current Monitor Module above Pump
+    const csx = px, csy = py - 32;
     ctx.save();
     ctx.fillStyle = hasFault ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)';
     ctx.strokeStyle = hasFault ? '#ef4444' : '#10b981';
     ctx.lineWidth = 1;
-    ctx.roundRect(csx - 24, csy - 10, 48, 18, 4);
+    ctx.roundRect(csx - 22, csy - 9, 44, 16, 4);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = hasFault ? '#fca5a5' : '#a7f3d0';
-    ctx.font = 'bold 8px sans-serif';
-    ctx.fillText(hasFault ? 'CURRENT !' : 'CURRENT OK', csx - 21, csy + 2);
+    ctx.font = 'bold 7.5px sans-serif';
+    ctx.fillText(hasFault ? 'CURRENT !' : 'CURRENT OK', csx - 19, csy + 2);
     ctx.restore();
 
-    // 3. Freeze Sensor (Exterior)
-    const fsx = rx + rw - 20, fsy = ry + 25;
+    // =========================================================================
+    // 5. EXTERNAL FREEZE SENSOR
+    // =========================================================================
+    const fsx = rx + rw - 22, fsy = ry + 26;
     ctx.save();
     ctx.fillStyle = this.state.freezeSensor ? '#ef4444' : '#10b981';
     ctx.beginPath();
-    ctx.arc(fsx, fsy, 7, 0, Math.PI * 2);
+    ctx.arc(fsx, fsy, 6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 
     ctx.fillStyle = this.state.freezeSensor ? '#f87171' : '#a7f3d0';
-    ctx.font = '9px sans-serif';
-    ctx.fillText(this.state.freezeSensor ? 'FREEZE <40°F' : 'OUTSIDE >40°F', fsx - 65, fsy + 4);
+    ctx.font = 'bold 8.5px sans-serif';
+    ctx.fillText(this.state.freezeSensor ? 'FREEZE <40°F' : 'OUTSIDE >40°F', fsx - 62, fsy + 3);
+    ctx.restore();
 
     ctx.restore();
   }
@@ -291,23 +621,23 @@ class SystemSchematic {
     const w = this.width;
 
     // Tank dimensions (Top-right of canvas)
-    const tx = w - 210, ty = 40, tw = 170, th = 220;
+    const tx = w - 190, ty = 40, tw = 160, th = 220;
 
     ctx.save();
     // Tank Frame
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
     ctx.lineWidth = 2;
     ctx.roundRect(tx, ty, tw, th, 12);
     ctx.fill();
     ctx.stroke();
 
-    // Tank Roof / Hat
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+    // Tank Roof
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.95)';
     ctx.beginPath();
-    ctx.moveTo(tx - 10, ty);
-    ctx.lineTo(tx + tw / 2, ty - 18);
-    ctx.lineTo(tx + tw + 10, ty);
+    ctx.moveTo(tx - 8, ty);
+    ctx.lineTo(tx + tw / 2, ty - 16);
+    ctx.lineTo(tx + tw + 8, ty);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -355,7 +685,7 @@ class SystemSchematic {
     // Float Switches Visual Nodes
     // -------------------------------------------------------------
     const floats = [
-      { name: 'TANK HIGH', y: ty + 40, floating: !this.state.tankHigh, color: !this.state.tankHigh ? '#10b981' : '#64748b' },
+      { name: 'TANK HIGH', y: ty + 42, floating: !this.state.tankHigh, color: !this.state.tankHigh ? '#10b981' : '#64748b' },
       { name: 'TANK LOW',  y: ty + 115, floating: !this.state.tankLow, color: this.state.tankLow ? '#f59e0b' : '#10b981' },
       { name: 'TANK EMPTY', y: ty + 185, floating: !this.state.tankEmpty, color: this.state.tankEmpty ? '#ef4444' : '#10b981' }
     ];
@@ -366,7 +696,7 @@ class SystemSchematic {
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(tx + tw - 12, f.y);
-      ctx.lineTo(tx + tw - 34, f.y);
+      ctx.lineTo(tx + tw - 32, f.y);
       ctx.stroke();
 
       // Float ball
@@ -375,29 +705,30 @@ class SystemSchematic {
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       const floatY = f.floating ? (f.y - 4) : (f.y + 4);
-      ctx.arc(tx + tw - 40, floatY, 8, 0, Math.PI * 2);
+      ctx.arc(tx + tw - 38, floatY, 7.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // Label
       ctx.fillStyle = f.color;
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillText(f.name, tx + 12, f.y + 3);
+      ctx.font = 'bold 8.5px sans-serif';
+      ctx.fillText(f.name, tx + 10, f.y + 3);
     });
 
     // Tank Header Label
     ctx.fillStyle = '#f1f5f9';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('TWEED BLVD TANK', tx + 28, ty + 18);
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillText('TWEED BLVD TANK', tx + 24, ty + 18);
 
     ctx.restore();
   }
 
   drawWaterFlowParticles() {
-    if (!this.state.lineValve) return; // Flow only when valve open
+    // Uphill flow only when Line Valve is open and water is present
+    if (!this.state.lineValve || this.pipeWaterLevel < 0.1) return;
 
     const ctx = this.ctx;
-    const path = this.pipePath;
+    const path = this.fillPipePath;
     if (!path || path.length < 2) return;
 
     ctx.save();
@@ -406,10 +737,10 @@ class SystemSchematic {
     ctx.shadowBlur = 8;
 
     this.particles.forEach(p => {
-      p.progress += p.speed * (this.state.pump ? 1.8 : 0.8);
-      if (p.progress > 1) p.progress = 0;
+      p.progress += p.speed * (this.state.pump ? 1.8 : 0.9);
+      if (p.progress > this.pipeWaterLevel) p.progress = 0;
 
-      // Calculate position along multi-segment pipe path
+      // Calculate position along multi-segment path
       const totalSegments = path.length - 1;
       const segIndex = Math.min(Math.floor(p.progress * totalSegments), totalSegments - 1);
       const segProgress = (p.progress * totalSegments) - segIndex;
@@ -422,6 +753,90 @@ class SystemSchematic {
 
       ctx.beginPath();
       ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Water pouring drop stream at tank inlet if full flow reached
+    if (this.pipeWaterLevel > 0.9) {
+      const inletX = this.width - 165;
+      const inletY = 70;
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.7)';
+      ctx.fillRect(inletX - 2, inletY, 4, 35);
+
+      this.tankSplashes.forEach(s => {
+        s.life -= 0.05;
+        s.x += s.vx;
+        s.y += s.vy;
+        if (s.life <= 0) {
+          s.life = 1.0;
+          s.x = inletX + (Math.random() - 0.5) * 6;
+          s.y = inletY + 35;
+        }
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    ctx.restore();
+  }
+
+  drawDrainingDischarge() {
+    // Downhill draining particles and sump discharge
+    if (this.state.lineValve || this.pipeWaterLevel <= 0.001) return;
+
+    const ctx = this.ctx;
+    const path = this.fillPipePath;
+    const h = this.height;
+
+    ctx.save();
+    ctx.fillStyle = '#38bdf8';
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 6;
+
+    // Draw backward rushing particles along hill pipe
+    this.drainParticles.forEach(p => {
+      // Particles travel downwards (from high progress towards 0)
+      p.progress -= p.speed;
+      if (p.progress < 0 || p.progress > this.pipeWaterLevel) {
+        p.progress = Math.min(this.pipeWaterLevel, 0.95);
+      }
+
+      const totalSegments = path.length - 1;
+      const segIndex = Math.min(Math.floor(p.progress * totalSegments), totalSegments - 1);
+      const segProgress = (p.progress * totalSegments) - segIndex;
+
+      const pStart = path[segIndex];
+      const pEnd = path[segIndex + 1];
+
+      const x = pStart.x + (pEnd.x - pStart.x) * segProgress;
+      const y = pStart.y + (pEnd.y - pStart.y) * segProgress;
+
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw drain valve discharge spray into sump
+    const spoutX = 175;
+    const spoutY = h - 35;
+
+    // Animated water jet down to sump
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.8)';
+    ctx.fillRect(spoutX - 2.5, spoutY, 5, 12);
+
+    // Splash particles
+    this.drainSplashes.forEach(s => {
+      s.life -= 0.04;
+      s.x += s.vx;
+      s.y += s.vy;
+      if (s.life <= 0) {
+        s.life = 1.0;
+        s.x = spoutX + (Math.random() - 0.5) * 4;
+        s.y = spoutY + 8;
+      }
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fill();
     });
 

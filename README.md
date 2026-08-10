@@ -41,7 +41,7 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 
 | Device / Signal | ESP32 Pin | Type | Logic / Behavior |
 | :--- | :--- | :--- | :--- |
-| **Line Valve Relay** | `GPIO 2` | Output (Relay) | HIGH = Valve Open (Energized), LOW = Closed |
+| **Shared Valve Relay (Line & Drain)** | `GPIO 2` | Output (Relay) | HIGH = Line Valve Open & Drain Valve Closed (Energized)<br>LOW = Line Valve Closed & Drain Valve Open (Draining Pipe) |
 | **Water Pump Relay** | `GPIO 25` | Output (Relay) | HIGH = Pump Running (Energized), LOW = Off |
 | **Alarm Buzzer / Relay** | `GPIO 26` | Output (Relay) | HIGH = Sounding Alarm, LOW = Muted/Off |
 | **Tank Empty Float** | `GPIO 27` | Input (Pullup) | Down (Non-floating) = LOW (ALARM), Floating = HIGH |
@@ -79,9 +79,13 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 ### D. Tank High & Shutoff
 * **Tank High Switch Floating (FULL)**: Tank is filled $\rightarrow$ Both **Line Valve and Pump turn OFF** until the water level drops back to **Tank Low**. The last run duration is saved and displayed.
 
-### E. Freeze Protection Logic (<40°F Outside)
-* **Freeze Sensor ON (< 40°F)**: There is danger that the water inside the exposed fill pipe between the Pump Room and Tweed Blvd could freeze and burst. When the water level drops below Tank High, the **Line Valve remains CLOSED** to isolate the fill pipe. The system only opens the valve and turns on the pump when the water reaches **Tank Low**.
-* **Freeze Sensor OFF (>= 40°F / Warm)**: When the water level drops below Tank High, the **Line Valve opens automatically** so municipal water pressure can naturally top off the tank without engaging the pump.
+### E. Freeze Protection Logic (<40°F Outside) & Pipe Draining
+* **Shared Relay Architecture**: Both the **Line Valve (Normally Closed)** and the **Fill Pipe Drain Valve (Normally Open)** share a single control relay (`GPIO 2`).
+  - **Relay ON / Energized**: Line Valve is OPEN, Drain Valve is CLOSED (water allowed to fill holding tank).
+  - **Relay OFF / De-energized**: Line Valve is CLOSED, Drain Valve is OPEN (fill pipe drains into pump house sump).
+* **Freeze Sensor ON (< 40°F)**: There is danger that water inside the exposed fill pipe between the Pump Room and Tweed Blvd could freeze and burst. When the water level is between High and Low, the **Shared Relay remains OFF** (Line Valve Closed, Drain Valve Open, pipe drained).
+* **Active Fill Exception**: Even if the Freeze Sensor is ON, when the water level drops to **Tank Low**, the system engages the Shared Relay and Pump to actively fill the tank until **Tank High** is reached, at which point the relay immediately turns OFF and the pipe drains completely.
+* **Freeze Sensor OFF (>= 40°F / Warm)**: When the water level drops below Tank High, the **Shared Relay energizes** so municipal water pressure can naturally top off the tank without engaging the pump.
 
 ---
 

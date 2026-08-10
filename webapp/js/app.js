@@ -179,14 +179,55 @@ document.addEventListener('DOMContentLoaded', () => {
       emptyState.className = 'float-state-pill val-green';
     }
 
-    // 4. Actuators
+    // 4. Actuators & Shared Relay (GPIO 2)
+    const relayVal = document.getElementById('valSharedRelay');
+    if (relayVal) {
+      if (t.lineValve) {
+        relayVal.innerText = 'ON (ENERGIZED)';
+        relayVal.className = 'metric-val val-green';
+      } else {
+        relayVal.innerText = 'OFF (UNPOWERED)';
+        relayVal.className = 'metric-val val-grey';
+      }
+    }
+
     const valveVal = document.getElementById('valLineValve');
-    if (t.lineValve) {
-      valveVal.innerText = 'OPEN (ENERGIZED)';
-      valveVal.className = 'metric-val val-green';
-    } else {
-      valveVal.innerText = 'CLOSED';
-      valveVal.className = 'metric-val val-grey';
+    if (valveVal) {
+      if (t.lineValve) {
+        valveVal.innerText = 'OPEN (ENERGIZED)';
+        valveVal.className = 'metric-val val-green';
+      } else {
+        valveVal.innerText = 'CLOSED (OFF)';
+        valveVal.className = 'metric-val val-grey';
+      }
+    }
+
+    const drainVal = document.getElementById('valDrainValve');
+    if (drainVal) {
+      if (t.lineValve) {
+        drainVal.innerText = 'CLOSED (SEALED)';
+        drainVal.className = 'metric-val val-green';
+      } else {
+        drainVal.innerText = 'OPEN (DRAINING)';
+        drainVal.className = 'metric-val val-amber';
+      }
+    }
+
+    const pipeVal = document.getElementById('valPipeState');
+    if (pipeVal) {
+      if (t.lineValve) {
+        pipeVal.innerText = 'FLOWING UPHILL';
+        pipeVal.className = 'metric-val val-cyan';
+      } else if (schematic && schematic.pipeWaterLevel > 0.01) {
+        pipeVal.innerText = 'DRAINING TO SUMP';
+        pipeVal.className = 'metric-val val-amber';
+      } else if (t.freezeSensor) {
+        pipeVal.innerText = 'DRAINED (FREEZE SAFE)';
+        pipeVal.className = 'metric-val val-grey';
+      } else {
+        pipeVal.innerText = 'DRAINED / EMPTY';
+        pipeVal.className = 'metric-val val-grey';
+      }
     }
 
     const pumpVal = document.getElementById('valPump');

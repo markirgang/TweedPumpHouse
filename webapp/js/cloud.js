@@ -194,18 +194,29 @@ class HardwareSimulator {
 
     this.state.pumpTimedOut = (this.state.pumpTimingState === 2);
 
-    // 4. Line Valve Automation & Freeze Logic
+    // 4. Shared Relay (GPIO 2) Line Valve & Drain Valve Automation & Freeze Logic
+    // Rules:
+    // - Line valve and Drain valve share a single relay (GPIO 2).
+    // - Relay ON (Energized): Line Valve OPEN, Drain Valve CLOSED (Holding water / Filling allowed).
+    // - Relay OFF (De-energized): Line Valve CLOSED, Drain Valve OPEN (Draining fill pipe to sump).
+    // - Water is allowed in fill pipe if freeze sensor is OFF (warm) AND tank high is not floating (not full).
+    // - EXCEPTION: Even if freeze sensor is ON, water is allowed in fill pipe temporarily during active fill cycle (when tank low switch is down).
     let autoValve = false;
     if (!this.state.tankHigh) {
-      autoValve = false; // Tank full
+      // Tank High is floating (FULL) -> Relay OFF, valve closed, drain valve open (pipe drains)
+      autoValve = false;
     } else if (this.state.fillCycleActive) {
-      autoValve = true;  // Filling in progress
+      // Active fill cycle triggered by Tank Low down -> Relay ON, valve open, drain valve closed
+      // Allowed even if freeze sensor is ON until tank reaches full.
+      autoValve = true;
     } else {
-      // Tank High has dropped, but Low not reached
+      // Water is between High and Low (tank not full, but low not reached):
       if (this.state.freezeSensor) {
-        autoValve = false; // Freeze protection: keep closed
+        // Freeze Sensor ON (<40°F) -> Relay OFF, Line Valve closed, Drain Valve open (pipe drained for freeze protection)
+        autoValve = false;
       } else {
-        autoValve = true;  // Warm: open line valve for municipal pressure fill
+        // Freeze Sensor OFF (>=40°F Warm) -> Relay ON, Line Valve open, Drain Valve closed (municipal top off)
+        autoValve = true;
       }
     }
 
@@ -213,6 +224,10 @@ class HardwareSimulator {
     if (this.state.valveOverride === 1) this.state.lineValve = true;
     else if (this.state.valveOverride === 2) this.state.lineValve = false;
     else this.state.lineValve = autoValve;
+
+    // Shared Relay (GPIO 2) powers both Line Valve and Drain Valve:
+    this.state.relayPower = this.state.lineValve;
+    this.state.drainValve = !this.state.lineValve; // Drain valve is open (draining) when relay is OFF
 
     if (hasCurrentFault) {
       this.state.pump = false;

@@ -116,11 +116,11 @@
           Interactive Hydraulic Pipeline & Elevation Profile
         </div>
         <div class="schematic-legend">
-          <div class="legend-item"><div class="legend-dot" style="background:#00f0ff"></div>Water Flow</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Line Valve</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00f0ff"></div>Flow Uphill</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Line Valve (Open)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Drain Valve (Discharge)</div>
           <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>Pump Assist</div>
           <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Empty Alarm</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Current Monitor</div>
         </div>
       </div>
       <div class="schematic-canvas-container">
@@ -165,20 +165,32 @@
         </div>
       </section>
 
-      <!-- Card 2: Actuators & Pump On-Time Duration -->
+      <!-- Card 2: Actuators & Shared Relay State -->
       <section class="card">
         <div class="card-title">
-          <span>Plumbing Actuators & Relay State</span>
+          <span>Plumbing Actuators &amp; Relays</span>
           <span class="card-badge">Pump Room 9W</span>
         </div>
         
-        <div class="actuator-metrics">
+        <div class="actuator-metrics-grid">
           <div class="metric-box">
-            <div class="metric-label">Line Valve (Relay 1)</div>
+            <div class="metric-label">Shared Relay (GPIO 2)</div>
+            <div class="metric-val val-grey" id="valSharedRelay">OFF (UNPOWERED)</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Line Valve (NC)</div>
             <div class="metric-val val-grey" id="valLineValve">CLOSED</div>
           </div>
           <div class="metric-box">
-            <div class="metric-label">Water Pump (Relay 2)</div>
+            <div class="metric-label">Fill Pipe Drain (NO)</div>
+            <div class="metric-val val-amber" id="valDrainValve">OPEN (DRAINING)</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Fill Pipe Water State</div>
+            <div class="metric-val val-grey" id="valPipeState">DRAINED / EMPTY</div>
+          </div>
+          <div class="metric-box full-width">
+            <div class="metric-label">Water Pump (GPIO 25 Relay)</div>
             <div class="metric-val val-grey" id="valPump">OFF / STANDBY</div>
           </div>
         </div>
