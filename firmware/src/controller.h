@@ -103,6 +103,7 @@ private:
     unsigned long _lastDebounceTime;
     unsigned long _lastDhtReadTime;
     unsigned long _lastTelemetryBroadcast;
+    unsigned long _lineValveOpenedTime; // Timestamp when Line Valve was energized (for 5s booster start delay)
 
     bool _prevTankEmptyState;
 

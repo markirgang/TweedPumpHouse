@@ -64,12 +64,13 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 
 ### B. Tank Low, Pump Cycle & On-Time Tracking
 * **Tank Low Switch Down**: Water is low.
-  1. Opens **Line Valve** (`GPIO 2` HIGH).
-  2. Turns ON **Water Pump** (`GPIO 25` HIGH) to assist municipal pressure.
-  3. **Live Pump On-Time Tracking**: The touchscreen LCD, Web App, and Bluetooth interfaces display the exact elapsed running time (e.g. `08:34 / 25:00`).
-  4. **Pump Duty Cycle Timer**: Pump runs for **maximum 25 minutes**. If 25 minutes elapse and Tank Low is still down, the pump enters a **2-hour mandatory cooldown** to protect the pump motor.
-  5. **Timed Out Duration Display**: When timed out, all interfaces show that the pump ran for 25:00 along with the remaining cooldown time.
-  6. **Reset Pump Timeout**: Pressing **Reset Pump Timeout** on the touchscreen or Web App immediately clears the cooldown and restarts the pump.
+  1. Opens **Line Valve** (`GPIO 2` HIGH) to charge the fill/suction line.
+  2. **5-Second Priming Delay**: Waits 5 seconds after the line valve is opened to allow municipal line pressure to establish positive suction head.
+  3. Turns ON **Booster Water Pump** (`GPIO 25` HIGH) to assist municipal pressure.
+  4. **Live Pump On-Time Tracking**: The touchscreen LCD, Web App, and Bluetooth interfaces display the exact elapsed running time (e.g. `08:34 / 25:00`).
+  5. **Pump Duty Cycle Timer**: Pump runs for **maximum 25 minutes**. If 25 minutes elapse and Tank Low is still down, the pump enters a **2-hour mandatory cooldown** to protect the pump motor.
+  6. **Timed Out Duration Display**: When timed out, all interfaces show that the pump ran for 25:00 along with the remaining cooldown time.
+  7. **Reset Pump Timeout**: Pressing **Reset Pump Timeout** on the touchscreen or Web App immediately clears the cooldown and restarts the pump.
 
 ### C. Motor Health: Overcurrent & Undercurrent Protection
 * **Pump Overcurrent (`GPIO 34`)**: If motor load exceeds threshold (e.g. locked rotor, mechanical jam, electrical overload), the pump is shut off immediately, the audible alarm sounds, and an **OVERCURRENT FAULT** alert is displayed on the local screen, Web App, and BLE.

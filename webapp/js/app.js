@@ -243,6 +243,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (t.pumpTimingState === 2) {
       pumpVal.innerText = 'COOLDOWN';
       pumpVal.className = 'metric-val val-amber';
+    } else if (t.fillCycleActive && t.tankLow && t.lineValve) {
+      pumpVal.innerText = 'START DELAY (5s)';
+      pumpVal.className = 'metric-val val-amber';
     } else {
       pumpVal.innerText = 'OFF / STANDBY';
       pumpVal.className = 'metric-val val-grey';
@@ -292,6 +295,14 @@ document.addEventListener('DOMContentLoaded', () => {
       durationBadge.innerText = `RAN ${ranMm}m`;
       progressBar.className = 'progress-bar-fill cooldown';
       progressBar.style.width = Math.min(100, (rem / totalSec) * 100) + '%';
+    } else if (t.fillCycleActive && t.tankLow && t.lineValve && !t.pump) {
+      timerLabel.innerText = 'Booster Pump Start:';
+      timerDigits.innerText = 'VALVE PRIMING';
+      statusDesc.innerText = 'Line valve opened. Waiting 5s suction prime delay before pump starts.';
+      durationBadge.className = 'badge-pill cooldown';
+      durationBadge.innerText = '5s DELAY';
+      progressBar.className = 'progress-bar-fill cooldown';
+      progressBar.style.width = '20%';
     } else {
       timerLabel.innerText = 'Pump Run Time:';
       timerDigits.innerText = 'STANDBY';

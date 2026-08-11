@@ -111,6 +111,8 @@ class HardwareSimulator {
       fillCycleActive: false
     };
 
+    this.lineValveOpenSec = 0;
+
     this.timer = setInterval(() => this.tick(), 1000);
   }
 
@@ -160,7 +162,44 @@ class HardwareSimulator {
       this.state.fillCycleActive = true;
     }
 
-    // 3. Pump Timers & Protection
+    // 3. Shared Relay (GPIO 2) Line Valve & Drain Valve Automation & Freeze Logic
+    let autoValve = false;
+    if (!effectiveHigh) {
+      // Tank High is floating (FULL) -> Relay OFF, valve closed, drain valve open
+      autoValve = false;
+    } else if (this.state.fillCycleActive) {
+      // Active fill cycle triggered by Tank Low down -> Relay ON, valve open, drain valve closed
+      autoValve = true;
+    } else {
+      // Water is between High and Low:
+      if (effectiveFreeze) {
+        // Freeze Sensor ON (<40°F) -> Relay OFF, Line Valve closed, Drain Valve open
+        autoValve = false;
+      } else {
+        // Freeze Sensor OFF (>=40°F Warm) -> Relay ON, Line Valve open, Drain Valve closed
+        autoValve = true;
+      }
+    }
+
+    // Line Valve Overrides
+    if (this.state.valveOverride === 1) this.state.lineValve = true;
+    else if (this.state.valveOverride === 2) this.state.lineValve = false;
+    else this.state.lineValve = autoValve;
+
+    // Shared Relay (GPIO 2) powers both Line Valve and Drain Valve:
+    this.state.relayPower = this.state.lineValve;
+    this.state.drainValve = !this.state.lineValve;
+
+    // Track elapsed time since Line Valve opened (for 5s booster pump start delay)
+    if (this.state.lineValve) {
+      this.lineValveOpenSec = (this.lineValveOpenSec || 0) + 1;
+    } else {
+      this.lineValveOpenSec = 0;
+    }
+
+    const lineValveReady = this.state.lineValve && (this.lineValveOpenSec >= 5);
+
+    // 4. Booster Pump Timers, 5-Second Start Delay & Protection
     let autoPump = false;
 
     if (hasCurrentFault) {
@@ -170,7 +209,7 @@ class HardwareSimulator {
         this.state.pumpRunElapsedSec = 0;
       }
       autoPump = false;
-    } else if (this.state.fillCycleActive && effectiveLow) {
+    } else if (this.state.fillCycleActive && effectiveLow && lineValveReady) {
       if (this.state.pumpTimingState === 0) {
         this.state.pumpTimingState = 1;
         this.state.pumpRunElapsedSec = 0;
@@ -208,34 +247,7 @@ class HardwareSimulator {
 
     this.state.pumpTimedOut = (this.state.pumpTimingState === 2);
 
-    // 4. Shared Relay (GPIO 2) Line Valve & Drain Valve Automation & Freeze Logic
-    let autoValve = false;
-    if (!effectiveHigh) {
-      // Tank High is floating (FULL) -> Relay OFF, valve closed, drain valve open
-      autoValve = false;
-    } else if (this.state.fillCycleActive) {
-      // Active fill cycle triggered by Tank Low down -> Relay ON, valve open, drain valve closed
-      autoValve = true;
-    } else {
-      // Water is between High and Low:
-      if (effectiveFreeze) {
-        // Freeze Sensor ON (<40°F) -> Relay OFF, Line Valve closed, Drain Valve open
-        autoValve = false;
-      } else {
-        // Freeze Sensor OFF (>=40°F Warm) -> Relay ON, Line Valve open, Drain Valve closed
-        autoValve = true;
-      }
-    }
-
-    // 5. Overrides
-    if (this.state.valveOverride === 1) this.state.lineValve = true;
-    else if (this.state.valveOverride === 2) this.state.lineValve = false;
-    else this.state.lineValve = autoValve;
-
-    // Shared Relay (GPIO 2) powers both Line Valve and Drain Valve:
-    this.state.relayPower = this.state.lineValve;
-    this.state.drainValve = !this.state.lineValve;
-
+    // 5. Booster Pump Manual Overrides
     if (hasCurrentFault) {
       this.state.pump = false;
     } else if (this.state.pumpOverride === 1) {
@@ -313,6 +325,7 @@ class HardwareSimulator {
       this.state.lineValve = false;
       this.state.pump = false;
       this.state.fillCycleActive = false;
+      this.lineValveOpenSec = 0;
     }
   }
 }

@@ -8,6 +8,7 @@ WaterSystemController::WaterSystemController()
       _lastDebounceTime(0),
       _lastDhtReadTime(0),
       _lastTelemetryBroadcast(0),
+      _lineValveOpenedTime(0),
       _prevTankEmptyState(false)
 {
     // Initialize default telemetry state
@@ -213,7 +214,7 @@ void WaterSystemController::executeStateMachine() {
     }
 
     // -------------------------------------------------------------
-    // 3. FILL CYCLE & PUMP / LINE VALVE AUTOMATION
+    // 3. FILL CYCLE AUTOMATION (Tank High / Low Level Transitions)
     // -------------------------------------------------------------
     // Check if Tank High float switch is floating (rawHigh == false, Tank is FULL)
     if (!_telemetry.tankHigh) {
@@ -234,9 +235,53 @@ void WaterSystemController::executeStateMachine() {
     }
 
     // -------------------------------------------------------------
-    // 4. PUMP TIMING & PROTECTION LOGIC (25m Max Run, 2h Cooldown)
+    // 4. LINE VALVE & FREEZE PROTECTION AUTOMATION
+    // -------------------------------------------------------------
+    bool autoLineValveRequest = false;
+
+    if (!_telemetry.tankHigh) {
+        // Tank is FULL: Line valve stays closed
+        autoLineValveRequest = false;
+    } 
+    else if (_telemetry.isFillCycleActive) {
+        // Active fill cycle in progress: Line valve OPEN
+        autoLineValveRequest = true;
+    } 
+    else {
+        // Water is between High and Low (Tank High has dropped/turned ON, but Low is not yet reached)
+        if (_telemetry.freezeSensor) {
+            // FREEZE DANGER (<40°F): Keep Line Valve CLOSED to protect fill pipe from freezing!
+            autoLineValveRequest = false;
+        } else {
+            // WARM (>=40°F): Open Line Valve so municipal pressure alone can top off the tank
+            autoLineValveRequest = true;
+        }
+    }
+
+    // Apply Line Valve Manual Override & Output
+    bool prevLineValve = _telemetry.lineValve;
+    if (_telemetry.valveOverride == MODE_FORCE_ON) {
+        _telemetry.lineValve = true;
+    } else if (_telemetry.valveOverride == MODE_FORCE_OFF) {
+        _telemetry.lineValve = false;
+    } else {
+        _telemetry.lineValve = autoLineValveRequest;
+    }
+
+    // Track when Line Valve was opened to enforce the 5-second booster pump start delay
+    if (_telemetry.lineValve) {
+        if (!prevLineValve || _lineValveOpenedTime == 0) {
+            _lineValveOpenedTime = now;
+        }
+    } else {
+        _lineValveOpenedTime = 0;
+    }
+
+    // -------------------------------------------------------------
+    // 5. BOOSTER PUMP TIMING, 5-SECOND START DELAY & MOTOR PROTECTION
     // -------------------------------------------------------------
     bool autoPumpRequest = false;
+    bool lineValveReady = _telemetry.lineValve && (_lineValveOpenedTime > 0) && ((now - _lineValveOpenedTime) >= LINE_VALVE_TO_PUMP_DELAY_MS);
 
     if (hasCurrentFault) {
         // Current safety trip engaged -> shut off pump immediately and record run duration
@@ -247,8 +292,8 @@ void WaterSystemController::executeStateMachine() {
         }
         autoPumpRequest = false;
     }
-    else if (_telemetry.isFillCycleActive && _telemetry.tankLow) {
-        // Water is low and actively demanding pump
+    else if (_telemetry.isFillCycleActive && _telemetry.tankLow && lineValveReady) {
+        // Water is low, active fill demanded, and line valve has been open for at least 5 seconds
         if (_telemetry.pumpTimingState == PUMP_STATE_IDLE) {
             _telemetry.pumpTimingState = PUMP_STATE_RUNNING;
             _telemetry.pumpRunStartTime = now;
@@ -281,7 +326,7 @@ void WaterSystemController::executeStateMachine() {
             }
         }
     } else {
-        // If not demanding pump and currently running, stop pump & preserve run duration
+        // If not demanding pump (or still in 5s line valve prime delay) and currently running, stop pump & preserve run duration
         if (_telemetry.pumpTimingState == PUMP_STATE_RUNNING) {
             _telemetry.pumpLastRunDurationMs = now - _telemetry.pumpRunStartTime;
             _telemetry.pumpRunElapsedMs = _telemetry.pumpLastRunDurationMs;
@@ -299,42 +344,8 @@ void WaterSystemController::executeStateMachine() {
     }
 
     // -------------------------------------------------------------
-    // 5. LINE VALVE & FREEZE PROTECTION AUTOMATION
+    // 6. APPLY BOOSTER PUMP MANUAL OVERRIDES
     // -------------------------------------------------------------
-    bool autoLineValveRequest = false;
-
-    if (!_telemetry.tankHigh) {
-        // Tank is FULL: Line valve stays closed
-        autoLineValveRequest = false;
-    } 
-    else if (_telemetry.isFillCycleActive) {
-        // Active fill cycle in progress: Line valve OPEN
-        autoLineValveRequest = true;
-    } 
-    else {
-        // Water is between High and Low (Tank High has dropped/turned ON, but Low is not yet reached)
-        if (_telemetry.freezeSensor) {
-            // FREEZE DANGER (<40°F): Keep Line Valve CLOSED to protect fill pipe from freezing!
-            autoLineValveRequest = false;
-        } else {
-            // WARM (>=40°F): Open Line Valve so municipal pressure alone can top off the tank
-            autoLineValveRequest = true;
-        }
-    }
-
-    // -------------------------------------------------------------
-    // 6. APPLY MANUAL OVERRIDES & UPDATE DURATION
-    // -------------------------------------------------------------
-    // Line Valve Output
-    if (_telemetry.valveOverride == MODE_FORCE_ON) {
-        _telemetry.lineValve = true;
-    } else if (_telemetry.valveOverride == MODE_FORCE_OFF) {
-        _telemetry.lineValve = false;
-    } else {
-        _telemetry.lineValve = autoLineValveRequest;
-    }
-
-    // Pump Output
     if (hasCurrentFault) {
         // Fault active: Override cannot bypass motor protection
         _telemetry.pump = false;
@@ -440,6 +451,7 @@ void WaterSystemController::emergencyStop() {
     _telemetry.isFillCycleActive = false;
     _telemetry.lineValve = false;
     _telemetry.pump = false;
+    _lineValveOpenedTime = 0;
     digitalWrite(PIN_RELAY_LINE_VALVE, LOW);
     digitalWrite(PIN_RELAY_PUMP, LOW);
 }

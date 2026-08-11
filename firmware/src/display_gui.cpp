@@ -321,6 +321,9 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     } else if (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
         _sprite.drawString("TIMED OUT (COOLDOWN)", cx + 115, cy + 28);
+    } else if (telemetry.isFillCycleActive && telemetry.tankLow && telemetry.lineValve) {
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+        _sprite.drawString("PRIMING (5s DELAY)", cx + 115, cy + 28);
     } else {
         _sprite.setTextColor(0x7BEF, 0x2124);
         _sprite.drawString("OFF / STANDBY", cx + 115, cy + 28);
@@ -339,6 +342,9 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         unsigned long remSec = telemetry.pumpCooldownRemainingMs / 1000UL;
         unsigned long ranSec = telemetry.pumpLastRunDurationMs / 1000UL;
         snprintf(timerStr, sizeof(timerStr), "RAN %02lum | CD %02luh%02lum", ranSec / 60, remSec / 3600, (remSec % 3600) / 60);
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+    } else if (telemetry.isFillCycleActive && telemetry.tankLow && telemetry.lineValve && !telemetry.pump) {
+        snprintf(timerStr, sizeof(timerStr), "PRIMING SUCTION PIPE");
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
     } else if (telemetry.pumpLastRunDurationMs > 0) {
         unsigned long lastSec = telemetry.pumpLastRunDurationMs / 1000UL;

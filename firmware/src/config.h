@@ -38,8 +38,9 @@
 // =========================================================================
 // TIMING CONSTANTS (Water Pump Duty Cycle & Safety Protection)
 // =========================================================================
-#define PUMP_MAX_RUN_TIME_MS    (25UL * 60UL * 1000UL) // 25 Minutes Maximum Continuous Run
-#define PUMP_COOLDOWN_TIME_MS   (2UL * 60UL * 60UL * 1000UL) // 2 Hours Mandatory Cooldown
+#define PUMP_MAX_RUN_TIME_MS        (25UL * 60UL * 1000UL) // 25 Minutes Maximum Continuous Run
+#define PUMP_COOLDOWN_TIME_MS       (2UL * 60UL * 60UL * 1000UL) // 2 Hours Mandatory Cooldown
+#define LINE_VALVE_TO_PUMP_DELAY_MS (5UL * 1000UL)         // 5 Seconds Delay after Line Valve Opens before Pump Starts
 
 // =========================================================================
 // BLE GATT SERVICE & CHARACTERISTIC UUIDs
