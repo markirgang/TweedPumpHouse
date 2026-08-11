@@ -353,6 +353,47 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8. Override Buttons Active State
     updateOverrideButtons('valveOverrideGroup', t.valveOverride || 0);
     updateOverrideButtons('pumpOverrideGroup', t.pumpOverride || 0);
+    updateOverrideButtons('tankHighOverrideGroup', t.tankHighOverride || 0);
+    updateOverrideButtons('tankLowOverrideGroup', t.tankLowOverride || 0);
+    updateOverrideButtons('tankEmptyOverrideGroup', t.tankEmptyOverride || 0);
+    updateOverrideButtons('overcurrentOverrideGroup', t.overcurrentOverride || 0);
+    updateOverrideButtons('undercurrentOverrideGroup', t.undercurrentOverride || 0);
+    updateOverrideButtons('freezeOverrideGroup', t.freezeOverride || 0);
+
+    // 9. Check if any override is currently active
+    const activeOverrides = [];
+    if (t.pumpOverride && t.pumpOverride !== 0) activeOverrides.push(t.pumpOverride === 1 ? 'Pump FORCE ON' : 'Pump FORCE OFF');
+    if (t.valveOverride && t.valveOverride !== 0) activeOverrides.push(t.valveOverride === 1 ? 'Valve FORCE OPEN' : 'Valve FORCE CLOSE');
+    if (t.tankHighOverride && t.tankHighOverride !== 0) activeOverrides.push(t.tankHighOverride === 1 ? 'Tank High SIM FULL' : 'Tank High SIM NORM');
+    if (t.tankLowOverride && t.tankLowOverride !== 0) activeOverrides.push(t.tankLowOverride === 1 ? 'Tank Low SIM LOW' : 'Tank Low SIM OK');
+    if (t.tankEmptyOverride && t.tankEmptyOverride !== 0) activeOverrides.push(t.tankEmptyOverride === 1 ? 'Tank Empty SIM ALARM' : 'Tank Empty SIM OK');
+    if (t.overcurrentOverride && t.overcurrentOverride !== 0) activeOverrides.push(t.overcurrentOverride === 1 ? 'Overcurrent SIM TRIP' : 'Overcurrent SIM NORM');
+    if (t.undercurrentOverride && t.undercurrentOverride !== 0) activeOverrides.push(t.undercurrentOverride === 1 ? 'Undercurrent SIM DRY' : 'Undercurrent SIM NORM');
+    if (t.freezeOverride && t.freezeOverride !== 0) activeOverrides.push(t.freezeOverride === 1 ? 'Freeze SIM <40F' : 'Freeze SIM >=40F');
+
+    const isAnyOverrideActive = activeOverrides.length > 0;
+    const badgeOverride = document.getElementById('badgeOverrideActive');
+    if (badgeOverride) {
+      badgeOverride.style.display = isAnyOverrideActive ? 'inline-block' : 'none';
+      if (isAnyOverrideActive) {
+        badgeOverride.innerText = `${activeOverrides.length} OVERRIDE${activeOverrides.length > 1 ? 'S' : ''}`;
+      }
+    }
+
+    const alertCard = document.getElementById('settingsAlertCard');
+    const alertTitle = document.getElementById('alertTitleText');
+    const alertDesc = document.getElementById('alertDescText');
+    if (alertCard && alertTitle && alertDesc) {
+      if (isAnyOverrideActive) {
+        alertCard.className = 'settings-alert-card warning';
+        alertTitle.innerText = `WARNING: ${activeOverrides.length} Manual Override${activeOverrides.length > 1 ? 's' : ''} Active`;
+        alertDesc.innerText = `Active manual bypasses: ${activeOverrides.join(' • ')}. Normal autonomous logic is altered.`;
+      } else {
+        alertCard.className = 'settings-alert-card';
+        alertTitle.innerText = 'System Mode: All Subsystems in AUTO';
+        alertDesc.innerText = 'Autonomous float logic and current safety monitoring active. No manual overrides engaged.';
+      }
+    }
   }
 
   function updateOverrideButtons(groupId, activeVal) {
@@ -384,8 +425,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------------------
-  // 5. Button Event Listeners
+  // 5. Button Event Listeners & Tab Navigation
   // -------------------------------------------------------------------------
+  // Tab Switching
+  document.querySelectorAll('.nav-tab').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      const targetId = tabBtn.getAttribute('data-tab');
+      document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      tabBtn.classList.add('active');
+      const targetPane = document.getElementById(targetId);
+      if (targetPane) targetPane.classList.add('active');
+    });
+  });
+
+  const btnGoToSettings = document.getElementById('btnGoToSettings');
+  if (btnGoToSettings) {
+    btnGoToSettings.addEventListener('click', () => {
+      const tabSettings = document.getElementById('tabBtnSettings');
+      if (tabSettings) tabSettings.click();
+    });
+  }
+
   // Silence Alarm Buttons
   document.querySelectorAll('.btn-silence-alarm').forEach(b => {
     b.addEventListener('click', () => {
@@ -407,26 +468,53 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnResetUc) btnResetUc.addEventListener('click', resetFaultAction);
 
   // Emergency Stop Button
-  document.getElementById('btnEStop').addEventListener('click', () => {
+  const eStopAction = () => {
     if (confirm('Engage Emergency Stop? This will shut off all relays immediately.')) {
       sendCommand({ emergencyStop: true });
     }
+  };
+  document.getElementById('btnEStop').addEventListener('click', eStopAction);
+
+  // Generic Override Toggle Group Binder
+  const bindOverrideGroup = (groupId, commandKey) => {
+    document.querySelectorAll(`#${groupId} .btn-toggle`).forEach(b => {
+      b.addEventListener('click', () => {
+        const mode = parseInt(b.getAttribute('data-mode'), 10);
+        sendCommand({ [commandKey]: mode });
+      });
+    });
+  };
+
+  bindOverrideGroup('valveOverrideGroup', 'setValveOverride');
+  bindOverrideGroup('pumpOverrideGroup', 'setPumpOverride');
+  bindOverrideGroup('tankHighOverrideGroup', 'setTankHighOverride');
+  bindOverrideGroup('tankLowOverrideGroup', 'setTankLowOverride');
+  bindOverrideGroup('tankEmptyOverrideGroup', 'setTankEmptyOverride');
+  bindOverrideGroup('overcurrentOverrideGroup', 'setOvercurrentOverride');
+  bindOverrideGroup('undercurrentOverrideGroup', 'setUndercurrentOverride');
+  bindOverrideGroup('freezeOverrideGroup', 'setFreezeOverride');
+
+  // Reset All Overrides to Auto
+  const resetAllAutoAction = () => {
+    sendCommand({ resetAllOverrides: true });
+  };
+  const btnResetTop = document.getElementById('btnResetAllAutoTop');
+  if (btnResetTop) btnResetTop.addEventListener('click', resetAllAutoAction);
+  const btnResetBottom = document.getElementById('btnResetAllAutoBottom');
+  if (btnResetBottom) btnResetBottom.addEventListener('click', resetAllAutoAction);
+
+  // Settings Action Buttons
+  const btnSetResetFault = document.getElementById('btnSettingsResetFault');
+  if (btnSetResetFault) btnSetResetFault.addEventListener('click', resetFaultAction);
+
+  const btnSetSilence = document.getElementById('btnSettingsSilence');
+  if (btnSetSilence) btnSetSilence.addEventListener('click', () => {
+    alarmAudio.stopAlarm();
+    sendCommand({ silenceAlarm: true });
   });
 
-  // Override Toggle Buttons
-  document.querySelectorAll('#valveOverrideGroup .btn-toggle').forEach(b => {
-    b.addEventListener('click', () => {
-      const mode = parseInt(b.getAttribute('data-mode'), 10);
-      sendCommand({ setValveOverride: mode });
-    });
-  });
-
-  document.querySelectorAll('#pumpOverrideGroup .btn-toggle').forEach(b => {
-    b.addEventListener('click', () => {
-      const mode = parseInt(b.getAttribute('data-mode'), 10);
-      sendCommand({ setPumpOverride: mode });
-    });
-  });
+  const btnSetEStop = document.getElementById('btnSettingsEStop');
+  if (btnSetEStop) btnSetEStop.addEventListener('click', eStopAction);
 
   // -------------------------------------------------------------------------
   // 6. Connection Modal & Mode Switchers

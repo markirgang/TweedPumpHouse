@@ -21,7 +21,7 @@
 <body>
 
   <!-- =========================================================================
-       HEADER & NAVIGATION
+       HEADER & BRANDING
        ========================================================================= -->
   <header class="app-header">
     <div class="brand-section">
@@ -51,7 +51,28 @@
   </header>
 
   <!-- =========================================================================
-       MAIN DASHBOARD
+       NAVIGATION TAB BAR
+       ========================================================================= -->
+  <nav class="nav-tabs-container">
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="tab-dashboard" id="tabBtnDashboard">
+        <svg viewBox="0 0 24 24"><path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/></svg>
+        <span>Dashboard &amp; Pipeline</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-settings" id="tabBtnSettings">
+        <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.97 19.05,5.05L16.56,6.05C16.04,5.65 15.48,5.32 14.87,5.07L14.49,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.51,2.42L9.13,5.07C8.52,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.95C7.96,18.34 8.52,18.68 9.13,18.93L9.51,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.49,21.58L14.87,18.93C15.48,18.68 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+        <span>Settings &amp; Overrides</span>
+        <span class="badge-tab-alert" id="badgeOverrideActive" style="display:none">OVERRIDE ACTIVE</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-testbench" id="tabBtnTestbench">
+        <svg viewBox="0 0 24 24"><path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M11,7H13V9H11V7M11,11H13V17H11V11Z"/></svg>
+        <span>Test Bench Simulator</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- =========================================================================
+       MAIN CONTAINER
        ========================================================================= -->
   <main class="container">
 
@@ -106,266 +127,481 @@
       </div>
     </section>
 
-    <!-- 3. ANIMATED SCHEMATIC PIPELINE CANVAS -->
-    <section class="schematic-card">
-      <div class="schematic-header">
-        <div class="schematic-title">
-          <svg viewBox="0 0 24 24">
-            <path d="M12,3L2,12H5V20H19V12H22L12,3M12,7.7L16,11.3V18H8V11.3L12,7.7Z"/>
-          </svg>
-          Interactive Hydraulic Pipeline & Elevation Profile
-        </div>
-        <div class="schematic-legend">
-          <div class="legend-item"><div class="legend-dot" style="background:#00f0ff"></div>Flow Uphill</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Line Valve (Open)</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Drain Valve (Discharge)</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>Pump Assist</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Empty Alarm</div>
-        </div>
-      </div>
-      <div class="schematic-canvas-container">
-        <canvas id="schematicCanvas"></canvas>
-      </div>
-    </section>
-
-    <!-- 4. DASHBOARD TELEMETRY & CONTROLS GRID -->
-    <div class="dashboard-grid">
-
-      <!-- Card 1: Tweed Blvd Holding Tank Float Sensors -->
-      <section class="card">
-        <div class="card-title">
-          <span>Holding Tank Levels</span>
-          <span class="card-badge">Tweed Blvd Top</span>
-        </div>
-        <div class="tank-status-list">
-          <!-- Tank High -->
-          <div class="float-row">
-            <div class="float-left">
-              <div class="float-indicator" id="floatHighInd"></div>
-              <span class="float-name">Tank High (Top Float)</span>
-            </div>
-            <div class="float-state-pill" id="floatHighState">DOWN (NORMAL)</div>
-          </div>
-          <!-- Tank Low -->
-          <div class="float-row">
-            <div class="float-left">
-              <div class="float-indicator active-green" id="floatLowInd"></div>
-              <span class="float-name">Tank Low (Middle Float)</span>
-            </div>
-            <div class="float-state-pill val-green" id="floatLowState">FLOATING (ADEQUATE)</div>
-          </div>
-          <!-- Tank Empty -->
-          <div class="float-row">
-            <div class="float-left">
-              <div class="float-indicator active-green" id="floatEmptyInd"></div>
-              <span class="float-name">Tank Empty (Lowest Float)</span>
-            </div>
-            <div class="float-state-pill val-green" id="floatEmptyState">FLOATING (OK)</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Card 2: Actuators & Shared Relay State -->
-      <section class="card">
-        <div class="card-title">
-          <span>Plumbing Actuators &amp; Relays</span>
-          <span class="card-badge">Pump Room 9W</span>
-        </div>
-        
-        <div class="actuator-metrics-grid">
-          <div class="metric-box">
-            <div class="metric-label">Shared Relay (GPIO 2)</div>
-            <div class="metric-val val-grey" id="valSharedRelay">OFF (UNPOWERED)</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Line Valve (NC)</div>
-            <div class="metric-val val-grey" id="valLineValve">CLOSED</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Fill Pipe Drain (NO)</div>
-            <div class="metric-val val-amber" id="valDrainValve">OPEN (DRAINING)</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Fill Pipe Water State</div>
-            <div class="metric-val val-grey" id="valPipeState">DRAINED / EMPTY</div>
-          </div>
-          <div class="metric-box full-width">
-            <div class="metric-label">Water Pump (GPIO 25 Relay)</div>
-            <div class="metric-val val-grey" id="valPump">OFF / STANDBY</div>
-          </div>
-        </div>
-
-        <div class="pump-timer-card">
-          <div class="timer-row">
-            <span id="pumpTimerLabel" style="color:var(--text-secondary)">Pump Run Time:</span>
-            <span class="timer-digits" id="pumpTimerDigits">STANDBY</span>
-          </div>
-          <div class="timer-sub-row" id="pumpTimerSubText">
-            <span id="pumpStatusDesc">System ready</span>
-            <span id="pumpDurationBadge" class="badge-pill">00:00</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="pumpProgressBar"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Card 3: Pump Motor Current Monitoring -->
-      <section class="card">
-        <div class="card-title">
-          <span>Pump Current Sensors</span>
-          <span class="card-badge">CON1 Inputs</span>
-        </div>
-        <div class="tank-status-list">
-          <!-- Overcurrent -->
-          <div class="float-row">
-            <div class="float-left">
-              <div class="float-indicator active-green" id="currentOverInd"></div>
-              <span class="float-name">Overcurrent (Motor Overload)</span>
-            </div>
-            <div class="float-state-pill val-green" id="currentOverState">NORMAL (&lt; LIMIT)</div>
-          </div>
-          <!-- Undercurrent -->
-          <div class="float-row">
-            <div class="float-left">
-              <div class="float-indicator active-green" id="currentUnderInd"></div>
-              <span class="float-name">Undercurrent (Dry Run Sensor)</span>
-            </div>
-            <div class="float-state-pill val-green" id="currentUnderState">NORMAL (PRIME OK)</div>
-          </div>
-        </div>
-        <div class="current-summary-box" id="currentSummaryBox">
-          <svg viewBox="0 0 24 24"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z"/></svg>
-          <span id="currentSummaryText">Motor load protection active &amp; healthy</span>
-        </div>
-      </section>
-
-      <!-- Card 4: Pump Room Environment (DHT11 & Freeze) -->
-      <section class="card">
-        <div class="card-title">
-          <span>Room Climate & Sensors</span>
-          <span class="card-badge">DHT11 + Freeze</span>
-        </div>
-
-        <div class="climate-grid">
-          <div class="climate-box">
+    <!-- =========================================================================
+         TAB PANE 1: DASHBOARD & PIPELINE SCHEMATIC
+         ========================================================================= -->
+    <div class="tab-pane active" id="tab-dashboard">
+      
+      <!-- 3. ANIMATED SCHEMATIC PIPELINE CANVAS -->
+      <section class="schematic-card">
+        <div class="schematic-header">
+          <div class="schematic-title">
             <svg viewBox="0 0 24 24">
-              <path d="M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z"/>
+              <path d="M12,3L2,12H5V20H19V12H22L12,3M12,7.7L16,11.3V18H8V11.3L12,7.7Z"/>
             </svg>
-            <div class="climate-data">
-              <h3 id="valTempF">68.0°F</h3>
-              <p>Room Temperature</p>
-            </div>
+            Interactive Hydraulic Pipeline &amp; Elevation Profile
           </div>
-
-          <div class="climate-box">
-            <svg viewBox="0 0 24 24">
-              <path d="M12,2C6.5,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 18.9,16.5 17.2,18C15.8,16.8 14,16 12,16C10,16 8.2,16.8 6.8,18C5.1,16.5 4,14.4 4,12A8,8 0 0,1 12,4Z"/>
-            </svg>
-            <div class="climate-data">
-              <h3 id="valHumidity">48%</h3>
-              <p>Relative Humidity</p>
-            </div>
+          <div class="schematic-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#00f0ff"></div>Flow Uphill</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Line Valve (Open)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Drain Valve (Discharge)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>Pump Assist</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Empty Alarm</div>
           </div>
+        </div>
+        <div class="schematic-canvas-container">
+          <canvas id="schematicCanvas"></canvas>
         </div>
       </section>
 
-      <!-- Card 5: Control Center & Overrides -->
-      <section class="card">
-        <div class="card-title">
-          <span>Control Center</span>
-          <span class="card-badge">Manual Overrides</span>
-        </div>
+      <!-- 4. DASHBOARD TELEMETRY & CONTROLS GRID -->
+      <div class="dashboard-grid">
 
-        <div class="control-grid">
-          <!-- Valve Mode -->
-          <div class="control-item">
-            <div class="control-info">
-              <h4>Line Valve Mode</h4>
-              <p>Auto float logic / Manual</p>
+        <!-- Card 1: Tweed Blvd Holding Tank Float Sensors -->
+        <section class="card">
+          <div class="card-title">
+            <span>Holding Tank Levels</span>
+            <span class="card-badge">Tweed Blvd Top</span>
+          </div>
+          <div class="tank-status-list">
+            <!-- Tank High -->
+            <div class="float-row">
+              <div class="float-left">
+                <div class="float-indicator" id="floatHighInd"></div>
+                <span class="float-name">Tank High (Top Float)</span>
+              </div>
+              <div class="float-state-pill" id="floatHighState">DOWN (NORMAL)</div>
             </div>
-            <div class="btn-group-toggle" id="valveOverrideGroup">
-              <button class="btn-toggle active" data-mode="0">AUTO</button>
-              <button class="btn-toggle" data-mode="1">OPEN</button>
-              <button class="btn-toggle" data-mode="2">CLOSE</button>
+            <!-- Tank Low -->
+            <div class="float-row">
+              <div class="float-left">
+                <div class="float-indicator active-green" id="floatLowInd"></div>
+                <span class="float-name">Tank Low (Middle Float)</span>
+              </div>
+              <div class="float-state-pill val-green" id="floatLowState">FLOATING (ADEQUATE)</div>
+            </div>
+            <!-- Tank Empty -->
+            <div class="float-row">
+              <div class="float-left">
+                <div class="float-indicator active-green" id="floatEmptyInd"></div>
+                <span class="float-name">Tank Empty (Lowest Float)</span>
+              </div>
+              <div class="float-state-pill val-green" id="floatEmptyState">FLOATING (OK)</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Card 2: Actuators & Shared Relay State -->
+        <section class="card">
+          <div class="card-title">
+            <span>Plumbing Actuators &amp; Relays</span>
+            <span class="card-badge">Pump Room 9W</span>
+          </div>
+          
+          <div class="actuator-metrics-grid">
+            <div class="metric-box">
+              <div class="metric-label">Shared Relay (GPIO 2)</div>
+              <div class="metric-val val-grey" id="valSharedRelay">OFF (UNPOWERED)</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Line Valve (NC)</div>
+              <div class="metric-val val-grey" id="valLineValve">CLOSED</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Fill Pipe Drain (NO)</div>
+              <div class="metric-val val-amber" id="valDrainValve">OPEN (DRAINING)</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Fill Pipe Water State</div>
+              <div class="metric-val val-grey" id="valPipeState">DRAINED / EMPTY</div>
+            </div>
+            <div class="metric-box full-width">
+              <div class="metric-label">Water Pump (GPIO 25 Relay)</div>
+              <div class="metric-val val-grey" id="valPump">OFF / STANDBY</div>
             </div>
           </div>
 
-          <!-- Pump Mode -->
-          <div class="control-item">
-            <div class="control-info">
-              <h4>Water Pump Mode</h4>
-              <p>Auto cycle / Manual</p>
+          <div class="pump-timer-card">
+            <div class="timer-row">
+              <span id="pumpTimerLabel" style="color:var(--text-secondary)">Pump Run Time:</span>
+              <span class="timer-digits" id="pumpTimerDigits">STANDBY</span>
             </div>
-            <div class="btn-group-toggle" id="pumpOverrideGroup">
-              <button class="btn-toggle active" data-mode="0">AUTO</button>
-              <button class="btn-toggle" data-mode="1">ON</button>
-              <button class="btn-toggle" data-mode="2">OFF</button>
+            <div class="timer-sub-row" id="pumpTimerSubText">
+              <span id="pumpStatusDesc">System ready</span>
+              <span id="pumpDurationBadge" class="badge-pill">00:00</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="pumpProgressBar"></div>
             </div>
           </div>
+        </section>
 
-          <!-- Action Buttons -->
-          <div class="action-buttons-row">
-            <button class="btn-action btn-reset-timeout" id="btnResetTimeout">
-              <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
-              Reset Timeout / Fault
-            </button>
-            <button class="btn-action btn-estop" id="btnEStop">
-              <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M9,9V15H15V9H9Z"/></svg>
-              E-Stop
+        <!-- Card 3: Pump Motor Current Monitoring -->
+        <section class="card">
+          <div class="card-title">
+            <span>Pump Current Sensors</span>
+            <span class="card-badge">CON1 Inputs</span>
+          </div>
+          <div class="tank-status-list">
+            <!-- Overcurrent -->
+            <div class="float-row">
+              <div class="float-left">
+                <div class="float-indicator active-green" id="currentOverInd"></div>
+                <span class="float-name">Overcurrent (Motor Overload)</span>
+              </div>
+              <div class="float-state-pill val-green" id="currentOverState">NORMAL (&lt; LIMIT)</div>
+            </div>
+            <!-- Undercurrent -->
+            <div class="float-row">
+              <div class="float-left">
+                <div class="float-indicator active-green" id="currentUnderInd"></div>
+                <span class="float-name">Undercurrent (Dry Run Sensor)</span>
+              </div>
+              <div class="float-state-pill val-green" id="currentUnderState">NORMAL (PRIME OK)</div>
+            </div>
+          </div>
+          <div class="current-summary-box" id="currentSummaryBox">
+            <svg viewBox="0 0 24 24"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z"/></svg>
+            <span id="currentSummaryText">Motor load protection active &amp; healthy</span>
+          </div>
+        </section>
+
+        <!-- Card 4: Pump Room Environment (DHT11 & Freeze) -->
+        <section class="card">
+          <div class="card-title">
+            <span>Room Climate &amp; Sensors</span>
+            <span class="card-badge">DHT11 + Freeze</span>
+          </div>
+
+          <div class="climate-grid">
+            <div class="climate-box">
+              <svg viewBox="0 0 24 24">
+                <path d="M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z"/>
+              </svg>
+              <div class="climate-data">
+                <h3 id="valTempF">68.0°F</h3>
+                <p>Room Temperature</p>
+              </div>
+            </div>
+
+            <div class="climate-box">
+              <svg viewBox="0 0 24 24">
+                <path d="M12,2C6.5,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 18.9,16.5 17.2,18C15.8,16.8 14,16 12,16C10,16 8.2,16.8 6.8,18C5.1,16.5 4,14.4 4,12A8,8 0 0,1 12,4Z"/>
+              </svg>
+              <div class="climate-data">
+                <h3 id="valHumidity">48%</h3>
+                <p>Relative Humidity</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Card 5: Quick Control Center & Overrides Link -->
+        <section class="card">
+          <div class="card-title">
+            <span>Quick Control Center</span>
+            <span class="card-badge">Actions</span>
+          </div>
+
+          <div class="control-grid">
+            <div class="action-buttons-row">
+              <button class="btn-action btn-reset-timeout" id="btnResetTimeout">
+                <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
+                Reset Timeout / Fault
+              </button>
+              <button class="btn-action btn-estop" id="btnEStop">
+                <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M9,9V15H15V9H9Z"/></svg>
+                E-Stop
+              </button>
+            </div>
+            <button class="btn-link-settings" id="btnGoToSettings">
+              <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.97 19.05,5.05L16.56,6.05C16.04,5.65 15.48,5.32 14.87,5.07L14.49,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.51,2.42L9.13,5.07C8.52,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.95C7.96,18.34 8.52,18.68 9.13,18.93L9.51,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.49,21.58L14.87,18.93C15.48,18.68 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+              Open Full Settings &amp; Overrides Center &rarr;
             </button>
           </div>
-        </div>
-      </section>
+        </section>
 
+      </div>
     </div>
 
-    <!-- 5. INTERACTIVE HARDWARE TEST BENCH SIMULATOR -->
-    <section class="sim-panel">
-      <div class="sim-header">
-        <h3>
-          <svg style="width:18px;height:18px;fill:currentColor" viewBox="0 0 24 24">
-            <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M11,7H13V9H11V7M11,11H13V17H11V11Z"/>
-          </svg>
-          Hardware Test Bench Simulator (Interactive Logic Tester)
-        </h3>
+    <!-- =========================================================================
+         TAB PANE 2: DEDICATED SETTINGS & MANUAL OVERRIDES
+         ========================================================================= -->
+    <div class="tab-pane" id="tab-settings">
+
+      <!-- Override Active Banner -->
+      <section class="settings-alert-card" id="settingsAlertCard">
+        <div class="alert-info">
+          <div class="alert-icon-wrap" id="alertIconWrap">
+            <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/></svg>
+          </div>
+          <div class="alert-details">
+            <h3 id="alertTitleText">System Mode: All Subsystems in AUTO</h3>
+            <p id="alertDescText">Autonomous float logic and current safety monitoring active. No manual overrides engaged.</p>
+          </div>
+        </div>
+        <button class="btn-reset-all-auto" id="btnResetAllAutoTop">
+          <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
+          Reset All Overrides to AUTO
+        </button>
+      </section>
+
+      <!-- Settings Grid -->
+      <div class="settings-grid">
+
+        <!-- 1. Actuator Output Overrides -->
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <div class="header-left">
+              <svg viewBox="0 0 24 24"><path d="M12,3L2,12H5V20H19V12H22L12,3M12,7.7L16,11.3V18H8V11.3L12,7.7Z"/></svg>
+              <div>
+                <h3>Primary Actuator Power Overrides</h3>
+                <p>Override Booster Pump relay and Line/Drain Valve power states</p>
+              </div>
+            </div>
+            <span class="settings-pill-badge">Relays</span>
+          </div>
+
+          <div class="settings-controls-list">
+            <!-- Booster Pump -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Booster Water Pump (GPIO 25)</h4>
+                <p>25-minute cycle auto control / Manual force run / Force stop</p>
+              </div>
+              <div class="btn-group-toggle" id="pumpOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-on" data-mode="1">FORCE ON</button>
+                <button class="btn-toggle btn-mode-off" data-mode="2">FORCE OFF</button>
+              </div>
+            </div>
+
+            <!-- Line Valve / Drain Power -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Line Valve &amp; Drain Valve Power (GPIO 2)</h4>
+                <p>Power Line Valve (NC opens) &amp; Drain Valve (NO seals) / Force close</p>
+              </div>
+              <div class="btn-group-toggle" id="valveOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-on" data-mode="1">FORCE OPEN</button>
+                <button class="btn-toggle btn-mode-off" data-mode="2">FORCE CLOSE</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Holding Tank Float Sensor Diagnostics & Overrides -->
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <div class="header-left">
+              <svg viewBox="0 0 24 24"><path d="M12,2C12,2 5,10 5,15C5,18.87 8.13,22 12,22C15.87,22 19,18.87 19,15C19,10 12,2 12,2M12,4.64C14.73,8.35 17,12.08 17,15A5,5 0 0,1 12,20A5,5 0 0,1 7,15C7,12.08 9.27,8.35 12,4.64Z"/></svg>
+              <div>
+                <h3>Holding Tank Float Sensor Overrides</h3>
+                <p>Simulate water levels to test pumping, filling, and alarm state machines</p>
+              </div>
+            </div>
+            <span class="settings-pill-badge">Tank Sensors</span>
+          </div>
+
+          <div class="settings-controls-list">
+            <!-- Tank High -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Tank High Float (Top Level - GPIO 33)</h4>
+                <p>Controls full tank shutoff and upper fill limit</p>
+              </div>
+              <div class="btn-group-toggle" id="tankHighOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-sim-act" data-mode="1">SIM FULL</button>
+                <button class="btn-toggle btn-mode-sim-inact" data-mode="2">SIM NORMAL</button>
+              </div>
+            </div>
+
+            <!-- Tank Low -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Tank Low Float (Middle Level - GPIO 32)</h4>
+                <p>Demands water fill cycle and engages pump assist</p>
+              </div>
+              <div class="btn-group-toggle" id="tankLowOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-sim-act" data-mode="1">SIM LOW</button>
+                <button class="btn-toggle btn-mode-sim-inact" data-mode="2">SIM OK</button>
+              </div>
+            </div>
+
+            <!-- Tank Empty -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Tank Empty Float (Lowest Level - GPIO 27)</h4>
+                <p>Triggers emergency tank empty audible alarm and critical strobe</p>
+              </div>
+              <div class="btn-group-toggle" id="tankEmptyOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-alarm" data-mode="1">SIM ALARM</button>
+                <button class="btn-toggle btn-mode-sim-inact" data-mode="2">SIM OK</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Motor Current & Environmental Sensor Overrides -->
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <div class="header-left">
+              <svg viewBox="0 0 24 24"><path d="M13,14H11V9H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/></svg>
+              <div>
+                <h3>Motor Protection &amp; Environmental Overrides</h3>
+                <p>Test current overload trip, dry-run undercurrent shutoff, and freeze protection</p>
+              </div>
+            </div>
+            <span class="settings-pill-badge">Protection</span>
+          </div>
+
+          <div class="settings-controls-list">
+            <!-- Overcurrent -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Pump Overcurrent Sensor (GPIO 34)</h4>
+                <p>Simulates motor overload/jam to test immediate trip interlock</p>
+              </div>
+              <div class="btn-group-toggle" id="overcurrentOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-trip" data-mode="1">FORCE TRIP</button>
+                <button class="btn-toggle btn-mode-sim-inact" data-mode="2">FORCE NORM</button>
+              </div>
+            </div>
+
+            <!-- Undercurrent -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Pump Undercurrent Sensor (GPIO 36)</h4>
+                <p>Simulates suction cavitation / dry-run to test pump seal protection</p>
+              </div>
+              <div class="btn-group-toggle" id="undercurrentOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-trip" data-mode="1">FORCE DRY</button>
+                <button class="btn-toggle btn-mode-sim-inact" data-mode="2">FORCE NORM</button>
+              </div>
+            </div>
+
+            <!-- Freeze Sensor -->
+            <div class="setting-row">
+              <div class="setting-meta">
+                <h4>Outside Freeze Sensor (GPIO 35)</h4>
+                <p>Simulates sub-40°F weather to verify fill line freeze isolation</p>
+              </div>
+              <div class="btn-group-toggle" id="freezeOverrideGroup">
+                <button class="btn-toggle active" data-mode="0">AUTO</button>
+                <button class="btn-toggle btn-mode-freeze" data-mode="1">FORCE &lt;40°F</button>
+                <button class="btn-toggle btn-mode-sim-inact" data-mode="2">FORCE &ge;40°F</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Global Emergency & Reset Actions -->
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <div class="header-left">
+              <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M9,9V15H15V9H9Z"/></svg>
+              <div>
+                <h3>System Reset &amp; Emergency Interlocks</h3>
+                <p>Clear faults, mute active audible alarms, or engage emergency stop</p>
+              </div>
+            </div>
+            <span class="settings-pill-badge">Actions</span>
+          </div>
+
+          <div class="settings-actions-grid">
+            <button class="btn-settings-action btn-act-reset-all" id="btnResetAllAutoBottom">
+              <svg viewBox="0 0 24 24"><path d="M12,4V1L8,5L12,9V6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12H4A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z"/></svg>
+              <div>
+                <strong>Reset All to AUTO</strong>
+                <span>Clear all actuator &amp; sensor overrides</span>
+              </div>
+            </button>
+
+            <button class="btn-settings-action btn-act-reset-fault" id="btnSettingsResetFault">
+              <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
+              <div>
+                <strong>Reset Fault / Timeout</strong>
+                <span>Clear 2hr cooldown or current trip</span>
+              </div>
+            </button>
+
+            <button class="btn-settings-action btn-act-silence" id="btnSettingsSilence">
+              <svg viewBox="0 0 24 24"><path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.45 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L4.27,3M19,12C19,12.82 18.85,13.61 18.59,14.34L20.2,15.95C20.71,14.77 21,13.43 21,12A9,9 0 0,0 12,3V5.08C15.92,5.5 19,8.4 19,12M16.5,12A4.5,4.5 0 0,0 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"/></svg>
+              <div>
+                <strong>Silence Alarm</strong>
+                <span>Mute audible buzzer during empty tank</span>
+              </div>
+            </button>
+
+            <button class="btn-settings-action btn-act-estop" id="btnSettingsEStop">
+              <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M9,9V15H15V9H9Z"/></svg>
+              <div>
+                <strong>Emergency Stop</strong>
+                <span>Instantly de-energize all pump &amp; valve relays</span>
+              </div>
+            </button>
+          </div>
+        </section>
+
       </div>
-      <div class="sim-controls-grid">
-        <div class="sim-box">
-          <label>Holding Tank Water Level Simulation</label>
-          <div class="sim-btn-group" id="simLevelGroup">
-            <button class="btn-sim" id="simLevelFull">Full (Top)</button>
-            <button class="btn-sim active" id="simLevelMid">Mid (Normal)</button>
-            <button class="btn-sim" id="simLevelLow">Low (Start)</button>
-            <button class="btn-sim" id="simLevelEmpty">Empty (Alarm)</button>
-          </div>
-        </div>
+    </div>
 
-        <div class="sim-box">
-          <label>Outside Temperature (Freeze Sensor)</label>
-          <div class="sim-btn-group" id="simFreezeGroup">
-            <button class="btn-sim active" id="simFreezeWarm">&gt;= 40°F (Warm)</button>
-            <button class="btn-sim" id="simFreezeCold">&lt; 40°F (Freeze Danger)</button>
-          </div>
+    <!-- =========================================================================
+         TAB PANE 3: INTERACTIVE HARDWARE TEST BENCH SIMULATOR
+         ========================================================================= -->
+    <div class="tab-pane" id="tab-testbench">
+      <section class="sim-panel">
+        <div class="sim-header">
+          <h3>
+            <svg style="width:18px;height:18px;fill:currentColor" viewBox="0 0 24 24">
+              <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M11,7H13V9H11V7M11,11H13V17H11V11Z"/>
+            </svg>
+            Hardware Test Bench Simulator (Interactive Logic Tester)
+          </h3>
         </div>
+        <div class="sim-controls-grid">
+          <div class="sim-box">
+            <label>Holding Tank Water Level Simulation</label>
+            <div class="sim-btn-group" id="simLevelGroup">
+              <button class="btn-sim" id="simLevelFull">Full (Top)</button>
+              <button class="btn-sim active" id="simLevelMid">Mid (Normal)</button>
+              <button class="btn-sim" id="simLevelLow">Low (Start)</button>
+              <button class="btn-sim" id="simLevelEmpty">Empty (Alarm)</button>
+            </div>
+          </div>
 
-        <div class="sim-box">
-          <label>Pump Overcurrent Sensor (GPIO 34)</label>
-          <div class="sim-btn-group" id="simOvercurrentGroup">
-            <button class="btn-sim active" id="simOvercurrentNormal">Normal (&lt; Limit)</button>
-            <button class="btn-sim" id="simOvercurrentFault">Trip Overload</button>
+          <div class="sim-box">
+            <label>Outside Temperature (Freeze Sensor)</label>
+            <div class="sim-btn-group" id="simFreezeGroup">
+              <button class="btn-sim active" id="simFreezeWarm">&gt;= 40°F (Warm)</button>
+              <button class="btn-sim" id="simFreezeCold">&lt; 40°F (Freeze Danger)</button>
+            </div>
           </div>
-        </div>
 
-        <div class="sim-box">
-          <label>Pump Undercurrent Sensor (GPIO 36)</label>
-          <div class="sim-btn-group" id="simUndercurrentGroup">
-            <button class="btn-sim active" id="simUndercurrentNormal">Normal (Prime OK)</button>
-            <button class="btn-sim" id="simUndercurrentFault">Trip Dry Run</button>
+          <div class="sim-box">
+            <label>Pump Overcurrent Sensor (GPIO 34)</label>
+            <div class="sim-btn-group" id="simOvercurrentGroup">
+              <button class="btn-sim active" id="simOvercurrentNormal">Normal (&lt; Limit)</button>
+              <button class="btn-sim" id="simOvercurrentFault">Trip Overload</button>
+            </div>
+          </div>
+
+          <div class="sim-box">
+            <label>Pump Undercurrent Sensor (GPIO 36)</label>
+            <div class="sim-btn-group" id="simUndercurrentGroup">
+              <button class="btn-sim active" id="simUndercurrentNormal">Normal (Prime OK)</button>
+              <button class="btn-sim" id="simUndercurrentFault">Trip Dry Run</button>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
   </main>
 

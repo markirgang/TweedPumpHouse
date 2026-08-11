@@ -28,6 +28,13 @@ WaterSystemController::WaterSystemController()
     _telemetry.valveOverride = MODE_AUTO;
     _telemetry.pumpOverride = MODE_AUTO;
 
+    _telemetry.tankHighOverride = MODE_AUTO;
+    _telemetry.tankLowOverride = MODE_AUTO;
+    _telemetry.tankEmptyOverride = MODE_AUTO;
+    _telemetry.overcurrentOverride = MODE_AUTO;
+    _telemetry.undercurrentOverride = MODE_AUTO;
+    _telemetry.freezeOverride = MODE_AUTO;
+
     _telemetry.pumpTimingState = PUMP_STATE_IDLE;
     _telemetry.pumpRunStartTime = 0;
     _telemetry.pumpRunElapsedMs = 0;
@@ -92,12 +99,60 @@ void WaterSystemController::readSensors() {
     bool rawUndercurrent = (digitalRead(PIN_PUMP_UNDERCURRENT) == LOW); // LOW = Undercurrent / Dry-run fault
 
     if (now - _lastDebounceTime > SENSOR_DEBOUNCE_MS) {
-        _telemetry.tankEmpty = rawEmpty;
-        _telemetry.tankLow = rawLow;
-        _telemetry.tankHigh = rawHigh;
-        _telemetry.freezeSensor = rawFreeze;
-        _telemetry.pumpOvercurrent = rawOvercurrent;
-        _telemetry.pumpUndercurrent = rawUndercurrent;
+        // Tank High: false = Floating (FULL), true = Dropped/Down
+        if (_telemetry.tankHighOverride == MODE_FORCE_ON) {
+            _telemetry.tankHigh = false; // Simulated FULL (Floating)
+        } else if (_telemetry.tankHighOverride == MODE_FORCE_OFF) {
+            _telemetry.tankHigh = true;  // Simulated Down / Filling Allowed
+        } else {
+            _telemetry.tankHigh = rawHigh;
+        }
+
+        // Tank Low: true = Down (Low water / Demand fill), false = Floating (Adequate)
+        if (_telemetry.tankLowOverride == MODE_FORCE_ON) {
+            _telemetry.tankLow = true;  // Simulated LOW (Demand water)
+        } else if (_telemetry.tankLowOverride == MODE_FORCE_OFF) {
+            _telemetry.tankLow = false; // Simulated Adequate
+        } else {
+            _telemetry.tankLow = rawLow;
+        }
+
+        // Tank Empty: true = Down (Critical Empty Alarm), false = Floating (OK)
+        if (_telemetry.tankEmptyOverride == MODE_FORCE_ON) {
+            _telemetry.tankEmpty = true;  // Simulated Empty Alarm
+        } else if (_telemetry.tankEmptyOverride == MODE_FORCE_OFF) {
+            _telemetry.tankEmpty = false; // Simulated OK
+        } else {
+            _telemetry.tankEmpty = rawEmpty;
+        }
+
+        // Freeze Sensor: true = <40°F danger, false = >=40°F warm
+        if (_telemetry.freezeOverride == MODE_FORCE_ON) {
+            _telemetry.freezeSensor = true;  // Simulated <40F freeze danger
+        } else if (_telemetry.freezeOverride == MODE_FORCE_OFF) {
+            _telemetry.freezeSensor = false; // Simulated >=40F warm
+        } else {
+            _telemetry.freezeSensor = rawFreeze;
+        }
+
+        // Overcurrent: true = Overload Fault, false = Normal
+        if (_telemetry.overcurrentOverride == MODE_FORCE_ON) {
+            _telemetry.pumpOvercurrent = true;  // Simulated Overload Fault
+        } else if (_telemetry.overcurrentOverride == MODE_FORCE_OFF) {
+            _telemetry.pumpOvercurrent = false; // Simulated Normal
+        } else {
+            _telemetry.pumpOvercurrent = rawOvercurrent;
+        }
+
+        // Undercurrent: true = Dry Run Fault, false = Normal
+        if (_telemetry.undercurrentOverride == MODE_FORCE_ON) {
+            _telemetry.pumpUndercurrent = true;  // Simulated Dry Run Fault
+        } else if (_telemetry.undercurrentOverride == MODE_FORCE_OFF) {
+            _telemetry.pumpUndercurrent = false; // Simulated Normal
+        } else {
+            _telemetry.pumpUndercurrent = rawUndercurrent;
+        }
+
         _lastDebounceTime = now;
 
         // Auto reset silence flag if tank was refilled and empties again
@@ -344,6 +399,41 @@ void WaterSystemController::setPumpOverride(OverrideMode mode) {
     _telemetry.pumpOverride = mode;
 }
 
+void WaterSystemController::setTankHighOverride(OverrideMode mode) {
+    _telemetry.tankHighOverride = mode;
+}
+
+void WaterSystemController::setTankLowOverride(OverrideMode mode) {
+    _telemetry.tankLowOverride = mode;
+}
+
+void WaterSystemController::setTankEmptyOverride(OverrideMode mode) {
+    _telemetry.tankEmptyOverride = mode;
+}
+
+void WaterSystemController::setOvercurrentOverride(OverrideMode mode) {
+    _telemetry.overcurrentOverride = mode;
+}
+
+void WaterSystemController::setUndercurrentOverride(OverrideMode mode) {
+    _telemetry.undercurrentOverride = mode;
+}
+
+void WaterSystemController::setFreezeOverride(OverrideMode mode) {
+    _telemetry.freezeOverride = mode;
+}
+
+void WaterSystemController::resetAllOverrides() {
+    _telemetry.valveOverride = MODE_AUTO;
+    _telemetry.pumpOverride = MODE_AUTO;
+    _telemetry.tankHighOverride = MODE_AUTO;
+    _telemetry.tankLowOverride = MODE_AUTO;
+    _telemetry.tankEmptyOverride = MODE_AUTO;
+    _telemetry.overcurrentOverride = MODE_AUTO;
+    _telemetry.undercurrentOverride = MODE_AUTO;
+    _telemetry.freezeOverride = MODE_AUTO;
+}
+
 void WaterSystemController::emergencyStop() {
     _telemetry.valveOverride = MODE_FORCE_OFF;
     _telemetry.pumpOverride = MODE_FORCE_OFF;
@@ -376,6 +466,12 @@ String WaterSystemController::getTelemetryJson() const {
     doc["pumpUndercurrentTrip"] = _telemetry.pumpUndercurrentTrip;
     doc["valveOverride"] = (int)_telemetry.valveOverride;
     doc["pumpOverride"] = (int)_telemetry.pumpOverride;
+    doc["tankHighOverride"] = (int)_telemetry.tankHighOverride;
+    doc["tankLowOverride"] = (int)_telemetry.tankLowOverride;
+    doc["tankEmptyOverride"] = (int)_telemetry.tankEmptyOverride;
+    doc["overcurrentOverride"] = (int)_telemetry.overcurrentOverride;
+    doc["undercurrentOverride"] = (int)_telemetry.undercurrentOverride;
+    doc["freezeOverride"] = (int)_telemetry.freezeOverride;
 
     // Pump timers & On-Time Tracking
     doc["pumpTimingState"] = (int)_telemetry.pumpTimingState;
@@ -425,6 +521,45 @@ bool WaterSystemController::processCommandJson(const String& jsonString) {
         if (mode >= 0 && mode <= 2) {
             setPumpOverride((OverrideMode)mode);
         }
+    }
+    if (doc.containsKey("setTankHighOverride")) {
+        int mode = doc["setTankHighOverride"];
+        if (mode >= 0 && mode <= 2) {
+            setTankHighOverride((OverrideMode)mode);
+        }
+    }
+    if (doc.containsKey("setTankLowOverride")) {
+        int mode = doc["setTankLowOverride"];
+        if (mode >= 0 && mode <= 2) {
+            setTankLowOverride((OverrideMode)mode);
+        }
+    }
+    if (doc.containsKey("setTankEmptyOverride")) {
+        int mode = doc["setTankEmptyOverride"];
+        if (mode >= 0 && mode <= 2) {
+            setTankEmptyOverride((OverrideMode)mode);
+        }
+    }
+    if (doc.containsKey("setOvercurrentOverride")) {
+        int mode = doc["setOvercurrentOverride"];
+        if (mode >= 0 && mode <= 2) {
+            setOvercurrentOverride((OverrideMode)mode);
+        }
+    }
+    if (doc.containsKey("setUndercurrentOverride")) {
+        int mode = doc["setUndercurrentOverride"];
+        if (mode >= 0 && mode <= 2) {
+            setUndercurrentOverride((OverrideMode)mode);
+        }
+    }
+    if (doc.containsKey("setFreezeOverride")) {
+        int mode = doc["setFreezeOverride"];
+        if (mode >= 0 && mode <= 2) {
+            setFreezeOverride((OverrideMode)mode);
+        }
+    }
+    if (doc.containsKey("resetAllOverrides")) {
+        resetAllOverrides();
     }
     if (doc.containsKey("emergencyStop")) {
         emergencyStop();

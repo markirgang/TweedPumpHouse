@@ -88,6 +88,12 @@ class HardwareSimulator {
       
       valveOverride: 0, // AUTO
       pumpOverride: 0,  // AUTO
+      tankHighOverride: 0,
+      tankLowOverride: 0,
+      tankEmptyOverride: 0,
+      overcurrentOverride: 0,
+      undercurrentOverride: 0,
+      freezeOverride: 0,
       
       pumpTimingState: 0, // 0: IDLE, 1: RUNNING, 2: COOLDOWN
       pumpTimedOut: false,
@@ -111,13 +117,21 @@ class HardwareSimulator {
   tick() {
     if (!this.isRunning) return;
 
+    // Apply software sensor overrides
+    let effectiveHigh = (this.state.tankHighOverride === 1) ? false : ((this.state.tankHighOverride === 2) ? true : this.state.tankHigh);
+    let effectiveLow = (this.state.tankLowOverride === 1) ? true : ((this.state.tankLowOverride === 2) ? false : this.state.tankLow);
+    let effectiveEmpty = (this.state.tankEmptyOverride === 1) ? true : ((this.state.tankEmptyOverride === 2) ? false : this.state.tankEmpty);
+    let effectiveFreeze = (this.state.freezeOverride === 1) ? true : ((this.state.freezeOverride === 2) ? false : this.state.freezeSensor);
+    let effectiveOvercurrent = (this.state.overcurrentOverride === 1) ? true : ((this.state.overcurrentOverride === 2) ? false : this.state.pumpOvercurrent);
+    let effectiveUndercurrent = (this.state.undercurrentOverride === 1) ? true : ((this.state.undercurrentOverride === 2) ? false : this.state.pumpUndercurrent);
+
     // 0. Current Fault Tripping Logic
     const isPumpAttempting = (this.state.pump || this.state.pumpTimingState === 1 || this.state.pumpOverride === 1);
     if (isPumpAttempting) {
-      if (this.state.pumpOvercurrent) {
+      if (effectiveOvercurrent) {
         this.state.pumpOvercurrentTrip = true;
       }
-      if (this.state.pumpUndercurrent) {
+      if (effectiveUndercurrent) {
         this.state.pumpUndercurrentTrip = true;
       }
     }
@@ -125,7 +139,7 @@ class HardwareSimulator {
     const hasCurrentFault = this.state.pumpOvercurrentTrip || this.state.pumpUndercurrentTrip;
 
     // 1. Alarm Logic
-    if (this.state.tankEmpty || this.state.pumpOvercurrentTrip) {
+    if (effectiveEmpty || this.state.pumpOvercurrentTrip) {
       this.state.alarm = !this.state.alarmSilenced;
     } else {
       this.state.alarm = false;
@@ -133,7 +147,7 @@ class HardwareSimulator {
     }
 
     // 2. Tank Level Transition Logic
-    if (!this.state.tankHigh) {
+    if (!effectiveHigh) {
       // Tank High is floating (FULL)
       this.state.fillCycleActive = false;
       if (this.state.pumpTimingState === 1) {
@@ -141,7 +155,7 @@ class HardwareSimulator {
         this.state.pumpTimingState = 0;
         this.state.pumpRunElapsedSec = 0;
       }
-    } else if (this.state.tankLow) {
+    } else if (effectiveLow) {
       // Water is low -> demand fill
       this.state.fillCycleActive = true;
     }
@@ -156,7 +170,7 @@ class HardwareSimulator {
         this.state.pumpRunElapsedSec = 0;
       }
       autoPump = false;
-    } else if (this.state.fillCycleActive && this.state.tankLow) {
+    } else if (this.state.fillCycleActive && effectiveLow) {
       if (this.state.pumpTimingState === 0) {
         this.state.pumpTimingState = 1;
         this.state.pumpRunElapsedSec = 0;
@@ -195,27 +209,20 @@ class HardwareSimulator {
     this.state.pumpTimedOut = (this.state.pumpTimingState === 2);
 
     // 4. Shared Relay (GPIO 2) Line Valve & Drain Valve Automation & Freeze Logic
-    // Rules:
-    // - Line valve and Drain valve share a single relay (GPIO 2).
-    // - Relay ON (Energized): Line Valve OPEN, Drain Valve CLOSED (Holding water / Filling allowed).
-    // - Relay OFF (De-energized): Line Valve CLOSED, Drain Valve OPEN (Draining fill pipe to sump).
-    // - Water is allowed in fill pipe if freeze sensor is OFF (warm) AND tank high is not floating (not full).
-    // - EXCEPTION: Even if freeze sensor is ON, water is allowed in fill pipe temporarily during active fill cycle (when tank low switch is down).
     let autoValve = false;
-    if (!this.state.tankHigh) {
-      // Tank High is floating (FULL) -> Relay OFF, valve closed, drain valve open (pipe drains)
+    if (!effectiveHigh) {
+      // Tank High is floating (FULL) -> Relay OFF, valve closed, drain valve open
       autoValve = false;
     } else if (this.state.fillCycleActive) {
       // Active fill cycle triggered by Tank Low down -> Relay ON, valve open, drain valve closed
-      // Allowed even if freeze sensor is ON until tank reaches full.
       autoValve = true;
     } else {
-      // Water is between High and Low (tank not full, but low not reached):
-      if (this.state.freezeSensor) {
-        // Freeze Sensor ON (<40°F) -> Relay OFF, Line Valve closed, Drain Valve open (pipe drained for freeze protection)
+      // Water is between High and Low:
+      if (effectiveFreeze) {
+        // Freeze Sensor ON (<40°F) -> Relay OFF, Line Valve closed, Drain Valve open
         autoValve = false;
       } else {
-        // Freeze Sensor OFF (>=40°F Warm) -> Relay ON, Line Valve open, Drain Valve closed (municipal top off)
+        // Freeze Sensor OFF (>=40°F Warm) -> Relay ON, Line Valve open, Drain Valve closed
         autoValve = true;
       }
     }
@@ -227,7 +234,7 @@ class HardwareSimulator {
 
     // Shared Relay (GPIO 2) powers both Line Valve and Drain Valve:
     this.state.relayPower = this.state.lineValve;
-    this.state.drainValve = !this.state.lineValve; // Drain valve is open (draining) when relay is OFF
+    this.state.drainValve = !this.state.lineValve;
 
     if (hasCurrentFault) {
       this.state.pump = false;
@@ -271,6 +278,34 @@ class HardwareSimulator {
     }
     if (cmd.setPumpOverride !== undefined) {
       this.state.pumpOverride = cmd.setPumpOverride;
+    }
+    if (cmd.setTankHighOverride !== undefined) {
+      this.state.tankHighOverride = cmd.setTankHighOverride;
+    }
+    if (cmd.setTankLowOverride !== undefined) {
+      this.state.tankLowOverride = cmd.setTankLowOverride;
+    }
+    if (cmd.setTankEmptyOverride !== undefined) {
+      this.state.tankEmptyOverride = cmd.setTankEmptyOverride;
+    }
+    if (cmd.setOvercurrentOverride !== undefined) {
+      this.state.overcurrentOverride = cmd.setOvercurrentOverride;
+    }
+    if (cmd.setUndercurrentOverride !== undefined) {
+      this.state.undercurrentOverride = cmd.setUndercurrentOverride;
+    }
+    if (cmd.setFreezeOverride !== undefined) {
+      this.state.freezeOverride = cmd.setFreezeOverride;
+    }
+    if (cmd.resetAllOverrides) {
+      this.state.valveOverride = 0;
+      this.state.pumpOverride = 0;
+      this.state.tankHighOverride = 0;
+      this.state.tankLowOverride = 0;
+      this.state.tankEmptyOverride = 0;
+      this.state.overcurrentOverride = 0;
+      this.state.undercurrentOverride = 0;
+      this.state.freezeOverride = 0;
     }
     if (cmd.emergencyStop) {
       this.state.valveOverride = 2;

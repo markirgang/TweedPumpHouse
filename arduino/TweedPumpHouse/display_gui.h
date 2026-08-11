@@ -17,6 +17,11 @@ public:
     LGFX_WT32_SC01();
 };
 
+enum GuiPage {
+    PAGE_DASHBOARD = 0,
+    PAGE_SETTINGS = 1
+};
+
 class DisplayGUI {
 public:
     DisplayGUI();
@@ -27,6 +32,7 @@ private:
     LGFX_WT32_SC01 _lcd;
     LGFX_Sprite _sprite; // Double buffering sprite for flicker-free rendering
 
+    GuiPage _currentPage;
     unsigned long _lastRenderTime;
     bool _touchPressed;
     int _touchX;
@@ -34,16 +40,35 @@ private:
 
     // Touch Button Bounding Boxes (Landscape 480x320)
     struct Rect { int x; int y; int w; int h; };
+    
+    // Header Tabs
+    Rect _tabDashboard;
+    Rect _tabSettings;
+
+    // Dashboard Buttons
     Rect _btnSilenceAlarm;
     Rect _btnResetPump;
     Rect _btnValveOverride;
     Rect _btnPumpOverride;
+
+    // Settings Page Buttons (Grid of 8 + Actions)
+    Rect _btnSetPump;
+    Rect _btnSetValve;
+    Rect _btnSetHigh;
+    Rect _btnSetLow;
+    Rect _btnSetEmpty;
+    Rect _btnSetOvercurrent;
+    Rect _btnSetUndercurrent;
+    Rect _btnSetFreeze;
+    Rect _btnResetAllAuto;
+    Rect _btnBackToDash;
 
     void handleTouchInput();
     void drawHeader(bool wifiConnected, bool bleConnected);
     void drawTankGraphic(const SystemTelemetry& telemetry);
     void drawActuatorsAndClimate(const SystemTelemetry& telemetry);
     void drawControlButtons(const SystemTelemetry& telemetry);
+    void drawSettingsPage(const SystemTelemetry& telemetry);
 };
 
 extern DisplayGUI displayGui;

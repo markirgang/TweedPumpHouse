@@ -38,6 +38,14 @@ struct SystemTelemetry {
     OverrideMode valveOverride; // AUTO / FORCE_ON / FORCE_OFF
     OverrideMode pumpOverride;  // AUTO / FORCE_ON / FORCE_OFF
 
+    // Sensor Software Overrides (Settings / Diagnostics)
+    OverrideMode tankHighOverride;     // AUTO / FORCE_ON (Sim Full) / FORCE_OFF (Sim Normal)
+    OverrideMode tankLowOverride;      // AUTO / FORCE_ON (Sim Low Demand) / FORCE_OFF (Sim OK)
+    OverrideMode tankEmptyOverride;    // AUTO / FORCE_ON (Sim Empty Alarm) / FORCE_OFF (Sim OK)
+    OverrideMode overcurrentOverride;  // AUTO / FORCE_ON (Sim Trip) / FORCE_OFF (Sim Normal)
+    OverrideMode undercurrentOverride; // AUTO / FORCE_ON (Sim Dry Run) / FORCE_OFF (Sim Normal)
+    OverrideMode freezeOverride;       // AUTO / FORCE_ON (Sim <40F) / FORCE_OFF (Sim >=40F)
+
     // Pump Safety Timers & On-Time Tracking
     PumpTimingState pumpTimingState; // IDLE, RUNNING, COOLDOWN
     unsigned long pumpRunStartTime;
@@ -68,6 +76,13 @@ public:
     void resetPumpTimeout();
     void setLineValveOverride(OverrideMode mode);
     void setPumpOverride(OverrideMode mode);
+    void setTankHighOverride(OverrideMode mode);
+    void setTankLowOverride(OverrideMode mode);
+    void setTankEmptyOverride(OverrideMode mode);
+    void setOvercurrentOverride(OverrideMode mode);
+    void setUndercurrentOverride(OverrideMode mode);
+    void setFreezeOverride(OverrideMode mode);
+    void resetAllOverrides();
     void emergencyStop();
 
     // Telemetry & Command API
