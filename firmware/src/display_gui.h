@@ -22,6 +22,19 @@ enum GuiPage {
     PAGE_SETTINGS = 1
 };
 
+enum PinAction {
+    ACT_NONE = 0,
+    ACT_PUMP_OVERRIDE = 1,
+    ACT_VALVE_OVERRIDE = 2,
+    ACT_HIGH_OVERRIDE = 3,
+    ACT_LOW_OVERRIDE = 4,
+    ACT_EMPTY_OVERRIDE = 5,
+    ACT_OVERCURRENT_OVERRIDE = 6,
+    ACT_UNDERCURRENT_OVERRIDE = 7,
+    ACT_FREEZE_OVERRIDE = 8,
+    ACT_RESET_ALL_AUTO = 9
+};
+
 class DisplayGUI {
 public:
     DisplayGUI();
@@ -37,6 +50,13 @@ private:
     bool _touchPressed;
     int _touchX;
     int _touchY;
+
+    // PIN Authentication State
+    bool _pinModalActive;
+    String _enteredPin;
+    PinAction _pendingAction;
+    unsigned long _unlockedUntil; // Millis timestamp when unlock expires
+    bool _pinError;
 
     // Touch Button Bounding Boxes (Landscape 480x320)
     struct Rect { int x; int y; int w; int h; };
@@ -63,12 +83,19 @@ private:
     Rect _btnResetAllAuto;
     Rect _btnBackToDash;
 
+    // PIN Pad Keypad Rectangles
+    Rect _keypadBtns[12]; // 1-9, Clear, 0, Cancel/OK
+
+    void requestProtectedAction(PinAction act);
+    void executeAction(PinAction act);
     void handleTouchInput();
+    void handlePinKeypadTouch();
     void drawHeader(bool wifiConnected, bool bleConnected);
     void drawTankGraphic(const SystemTelemetry& telemetry);
     void drawActuatorsAndClimate(const SystemTelemetry& telemetry);
     void drawControlButtons(const SystemTelemetry& telemetry);
     void drawSettingsPage(const SystemTelemetry& telemetry);
+    void drawPinKeypad();
 };
 
 extern DisplayGUI displayGui;

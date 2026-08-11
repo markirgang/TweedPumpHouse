@@ -38,9 +38,18 @@
 // =========================================================================
 // TIMING CONSTANTS (Water Pump Duty Cycle & Safety Protection)
 // =========================================================================
-#define PUMP_MAX_RUN_TIME_MS        (25UL * 60UL * 1000UL) // 25 Minutes Maximum Continuous Run
-#define PUMP_COOLDOWN_TIME_MS       (2UL * 60UL * 60UL * 1000UL) // 2 Hours Mandatory Cooldown
-#define LINE_VALVE_TO_PUMP_DELAY_MS (5UL * 1000UL)         // 5 Seconds Delay after Line Valve Opens before Pump Starts
+#define PUMP_MAX_RUN_TIME_MS          (25UL * 60UL * 1000UL) // 25 Minutes Maximum Continuous Run
+#define PUMP_COOLDOWN_TIME_MS         (2UL * 60UL * 60UL * 1000UL) // 2 Hours Mandatory Cooldown
+#define LINE_VALVE_TO_PUMP_DELAY_MS   (5UL * 1000UL)         // 5 Seconds Delay after Line Valve Opens before Pump Starts
+#define PUMP_START_STABILIZE_DELAY_MS (5UL * 1000UL)         // 5 Seconds Startup Current Draw Stabilization Delay
+#define PUMP_CURRENT_FAULT_DELAY_MS   (60UL * 1000UL)        // 1 Minute (60s) Warning & Alarm Pulse before Fault Shutdown
+#define ALARM_PULSE_INTERVAL_MS       500                    // 500ms ON / 500ms OFF Alarm Relay Pulsing
+
+// =========================================================================
+// SECURITY & PASSWORD CONFIGURATION
+// =========================================================================
+#define SYSTEM_ACCESS_PASSWORD        "5100"                 // Default PIN / Password to change states
+#define SYSTEM_ACCESS_PASSWORD_ALT    "tweed123"             // Alternate alphanumeric passphrase
 
 // =========================================================================
 // BLE GATT SERVICE & CHARACTERISTIC UUIDs

@@ -62,6 +62,14 @@ struct SystemTelemetry {
 
     // Fill cycle internal state
     bool isFillCycleActive; // true if active pumping/filling from Low to High
+
+    // 1-Minute Current Fault Warning & Alarm Pulsing State
+    bool pumpCurrentFaultPending;       // true if overcurrent/undercurrent is counting down 60s
+    bool isOvercurrentPending;          // true if pending fault is overcurrent
+    bool isUndercurrentPending;         // true if pending fault is undercurrent
+    unsigned long pumpCurrentFaultStartTime; // millis() when fault warning started
+    unsigned long pumpCurrentFaultRemainingMs; // remaining ms before pump shutdown
+    bool alarmPulsing;                  // true if alarm relay is actively pulsing (pre-trip warning)
 };
 
 class WaterSystemController {
@@ -89,6 +97,7 @@ public:
     const SystemTelemetry& getTelemetry() const { return _telemetry; }
     String getTelemetryJson() const;
     bool processCommandJson(const String& jsonString);
+    bool verifyPassword(const String& pass) const;
 
 private:
     SystemTelemetry _telemetry;

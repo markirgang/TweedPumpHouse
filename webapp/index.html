@@ -37,6 +37,10 @@
     </div>
 
     <div class="header-status">
+      <button class="btn-lock-status locked" id="btnLockStatus" title="Click to unlock or lock controls">
+        <span id="lockIcon">🔒</span>
+        <span id="lockText">Controls Locked</span>
+      </button>
       <div class="status-pill">
         <div class="status-dot sim" id="connectionDot"></div>
         <span id="connectionText">Test Simulator</span>
@@ -90,7 +94,21 @@
       <button class="btn-silence-alarm">SILENCE ALARM</button>
     </section>
 
-    <!-- 1B. OVERCURRENT FAULT BANNER -->
+    <!-- 1B-PRE. OVERCURRENT 1-MINUTE WARNING BANNER (PULSING ALARM) -->
+    <section class="alarm-banner banner-warning-pulsing" id="overcurrentWarningBanner">
+      <div class="alarm-left">
+        <div class="pulsing-badge-icon">
+          <svg viewBox="0 0 24 24"><path d="M13,14H11V9H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/></svg>
+        </div>
+        <div class="alarm-text">
+          <h3>MOTOR OVERLOAD WARNING (PULSING ALARM ACTIVE)</h3>
+          <p>Overcurrent detected on pump motor! Alarm relay is pulsing. Pump will shut down in <span class="countdown-badge" id="overcurrentCountdown">60s</span> unless condition clears.</p>
+        </div>
+      </div>
+      <button class="btn-silence-alarm">SILENCE ALARM</button>
+    </section>
+
+    <!-- 1B. OVERCURRENT LATCHED FAULT BANNER -->
     <section class="alarm-banner banner-overcurrent" id="overcurrentBanner">
       <div class="alarm-left">
         <svg viewBox="0 0 24 24">
@@ -102,6 +120,20 @@
         </div>
       </div>
       <button class="btn-silence-alarm" id="btnResetOvercurrent">RESET FAULT</button>
+    </section>
+
+    <!-- 1C-PRE. UNDERCURRENT 1-MINUTE WARNING BANNER (PULSING ALARM) -->
+    <section class="alarm-banner banner-warning-pulsing banner-warning-amber" id="undercurrentWarningBanner">
+      <div class="alarm-left">
+        <div class="pulsing-badge-icon amber">
+          <svg viewBox="0 0 24 24"><path d="M12 2c1.1 0 2 .9 2 2v1.1c3.4.5 6 3.4 6 6.9 0 2.2-1 4.2-2.6 5.5l1.4 1.4-1.4 1.4-1.4-1.4C14.7 19.6 13.4 20 12 20s-2.7-.4-4-1.1l-1.4 1.4-1.4-1.4 1.4-1.4C5 16.2 4 14.2 4 12c0-3.5 2.6-6.4 6-6.9V4c0-1.1.9-2 2-2m0 5c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5z"/></svg>
+        </div>
+        <div class="alarm-text">
+          <h3>DRY RUN WARNING (PULSING ALARM ACTIVE)</h3>
+          <p>Loss of suction / undercurrent detected! Alarm relay is pulsing. Pump will shut down in <span class="countdown-badge" id="undercurrentCountdown">60s</span> unless condition clears.</p>
+        </div>
+      </div>
+      <button class="btn-silence-alarm">SILENCE ALARM</button>
     </section>
 
     <!-- 1C. UNDERCURRENT / DRY RUN BANNER -->
@@ -604,6 +636,60 @@
     </div>
 
   </main>
+
+  <!-- =========================================================================
+       PASSWORD / PIN AUTHENTICATION MODAL
+       ========================================================================= -->
+  <div class="modal-overlay" id="passwordModal">
+    <div class="modal-content modal-auth">
+      <div class="auth-modal-header">
+        <div class="auth-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.89,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>
+        </div>
+        <div>
+          <h2>Password Required</h2>
+          <p>Enter 4-digit PIN or password to authorize state changes.</p>
+        </div>
+      </div>
+
+      <div class="auth-input-container">
+        <input type="password" id="passwordInput" placeholder="Enter PIN (Default: 5100)" autofocus maxlength="16" autocomplete="off" />
+        <button type="button" class="btn-toggle-pwd-vis" id="btnTogglePwdVis" title="Show/Hide Password">👁️</button>
+      </div>
+
+      <div class="auth-error-msg" id="authErrorMsg" style="display:none;">
+        Incorrect PIN or password. Try default: 5100
+      </div>
+
+      <!-- Virtual On-Screen Numpad for Touch / Quick Input -->
+      <div class="auth-numpad">
+        <button class="btn-num" data-val="1">1</button>
+        <button class="btn-num" data-val="2">2</button>
+        <button class="btn-num" data-val="3">3</button>
+        <button class="btn-num" data-val="4">4</button>
+        <button class="btn-num" data-val="5">5</button>
+        <button class="btn-num" data-val="6">6</button>
+        <button class="btn-num" data-val="7">7</button>
+        <button class="btn-num" data-val="8">8</button>
+        <button class="btn-num" data-val="9">9</button>
+        <button class="btn-num btn-num-clr" data-val="CLR">CLR</button>
+        <button class="btn-num" data-val="0">0</button>
+        <button class="btn-num btn-num-del" data-val="DEL">⌫</button>
+      </div>
+
+      <div class="auth-options">
+        <label class="auth-remember-label">
+          <input type="checkbox" id="chkKeepUnlocked" checked />
+          <span>Keep controls unlocked for 10 minutes</span>
+        </label>
+      </div>
+
+      <div class="auth-actions">
+        <button class="btn-auth-submit" id="btnSubmitPassword">Unlock &amp; Apply</button>
+        <button class="btn-auth-cancel" id="btnCancelPassword">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- =========================================================================
        CONNECTION MODAL

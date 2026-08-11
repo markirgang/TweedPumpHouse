@@ -75,10 +75,22 @@ LGFX_WT32_SC01::LGFX_WT32_SC01() {
     setPanel(&_panel_instance);
 }
 
-DisplayGUI::DisplayGUI() : _sprite(&_lcd), _currentPage(PAGE_DASHBOARD), _lastRenderTime(0), _touchPressed(false), _touchX(0), _touchY(0) {
+DisplayGUI::DisplayGUI() 
+    : _sprite(&_lcd), 
+      _currentPage(PAGE_DASHBOARD), 
+      _lastRenderTime(0), 
+      _touchPressed(false), 
+      _touchX(0), 
+      _touchY(0),
+      _pinModalActive(false),
+      _enteredPin(""),
+      _pendingAction(ACT_NONE),
+      _unlockedUntil(0),
+      _pinError(false)
+{
     // Header Navigation Tabs
-    _tabDashboard = { 200, 3, 96, 26 };
-    _tabSettings  = { 302, 3, 96, 26 };
+    _tabDashboard = { 170, 3, 94, 26 };
+    _tabSettings  = { 268, 3, 94, 26 };
 
     // Dashboard Page Buttons (Landscape 480 x 320)
     _btnSilenceAlarm  = { 12,  260, 105, 48 };
@@ -99,6 +111,15 @@ DisplayGUI::DisplayGUI() : _sprite(&_lcd), _currentPage(PAGE_DASHBOARD), _lastRe
 
     _btnResetAllAuto    = { 10,  260, 226, 48 };
     _btnBackToDash      = { 244, 260, 226, 48 };
+
+    // PIN Keypad Buttons (Centered: Modal at X=90, Y=26, W=300, H=268)
+    int startX = 110, startY = 104, btnW = 76, btnH = 34, gapX = 14, gapY = 6;
+    for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 3; col++) {
+            int idx = row * 3 + col;
+            _keypadBtns[idx] = { startX + col * (btnW + gapX), startY + row * (btnH + gapY), btnW, btnH };
+        }
+    }
 }
 
 void DisplayGUI::begin() {
@@ -111,6 +132,129 @@ void DisplayGUI::begin() {
     _sprite.createSprite(480, 320);
 }
 
+void DisplayGUI::requestProtectedAction(PinAction act) {
+    if (millis() < _unlockedUntil) {
+        // Session already authenticated
+        executeAction(act);
+    } else {
+        // Open PIN Keypad modal
+        _pinModalActive = true;
+        _enteredPin = "";
+        _pinError = false;
+        _pendingAction = act;
+    }
+}
+
+void DisplayGUI::executeAction(PinAction act) {
+    switch (act) {
+        case ACT_PUMP_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().pumpOverride;
+            systemController.setPumpOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_VALVE_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().valveOverride;
+            systemController.setLineValveOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_HIGH_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().tankHighOverride;
+            systemController.setTankHighOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_LOW_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().tankLowOverride;
+            systemController.setTankLowOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_EMPTY_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().tankEmptyOverride;
+            systemController.setTankEmptyOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_OVERCURRENT_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().overcurrentOverride;
+            systemController.setOvercurrentOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_UNDERCURRENT_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().undercurrentOverride;
+            systemController.setUndercurrentOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_FREEZE_OVERRIDE: {
+            OverrideMode cur = systemController.getTelemetry().freezeOverride;
+            systemController.setFreezeOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+            break;
+        }
+        case ACT_RESET_ALL_AUTO: {
+            systemController.resetAllOverrides();
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void DisplayGUI::handlePinKeypadTouch() {
+    // Check Close / Cancel button (top right of modal: x=350, y=28, w=35, h=30)
+    if (_touchX >= 340 && _touchX <= 385 && _touchY >= 26 && _touchY <= 60) {
+        _pinModalActive = false;
+        _enteredPin = "";
+        _pinError = false;
+        _pendingAction = ACT_NONE;
+        return;
+    }
+
+    // Keypad layout:
+    // 0:'1', 1:'2', 2:'3'
+    // 3:'4', 4:'5', 5:'6'
+    // 6:'7', 7:'8', 8:'9'
+    // 9:'CLR', 10:'0', 11:'OK'
+    const char keyChars[12] = { '1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'E' };
+
+    for (int i = 0; i < 12; i++) {
+        if (_touchX >= _keypadBtns[i].x && _touchX <= (_keypadBtns[i].x + _keypadBtns[i].w) &&
+            _touchY >= _keypadBtns[i].y && _touchY <= (_keypadBtns[i].y + _keypadBtns[i].h)) {
+            
+            char key = keyChars[i];
+            if (key == 'C') {
+                _enteredPin = "";
+                _pinError = false;
+            } else if (key == 'E') {
+                // Enter / OK
+                if (systemController.verifyPassword(_enteredPin)) {
+                    _unlockedUntil = millis() + 60000; // 60s unlock window
+                    _pinModalActive = false;
+                    _pinError = false;
+                    PinAction act = _pendingAction;
+                    _pendingAction = ACT_NONE;
+                    _enteredPin = "";
+                    executeAction(act);
+                } else {
+                    _pinError = true;
+                    _enteredPin = "";
+                }
+            } else {
+                if (_enteredPin.length() < 6) {
+                    _enteredPin += key;
+                    _pinError = false;
+                }
+                if (_enteredPin.length() == 4 && systemController.verifyPassword(_enteredPin)) {
+                    _unlockedUntil = millis() + 60000;
+                    _pinModalActive = false;
+                    _pinError = false;
+                    PinAction act = _pendingAction;
+                    _pendingAction = ACT_NONE;
+                    _enteredPin = "";
+                    executeAction(act);
+                }
+            }
+            return;
+        }
+    }
+}
+
 void DisplayGUI::handleTouchInput() {
     uint16_t tx, ty;
     if (_lcd.getTouch(&tx, &ty)) {
@@ -118,6 +262,12 @@ void DisplayGUI::handleTouchInput() {
             _touchPressed = true;
             _touchX = tx;
             _touchY = ty;
+
+            // If PIN Keypad modal is active, route all touches to keypad
+            if (_pinModalActive) {
+                handlePinKeypadTouch();
+                return;
+            }
 
             // Global Header Tab Switchers
             if (_touchX >= _tabDashboard.x && _touchX <= (_tabDashboard.x + _tabDashboard.w) &&
@@ -132,84 +282,72 @@ void DisplayGUI::handleTouchInput() {
             }
 
             if (_currentPage == PAGE_DASHBOARD) {
-                // Silence Alarm Button
+                // Silence Alarm Button (Unprotected emergency action)
                 if (_touchX >= _btnSilenceAlarm.x && _touchX <= (_btnSilenceAlarm.x + _btnSilenceAlarm.w) &&
                     _touchY >= _btnSilenceAlarm.y && _touchY <= (_btnSilenceAlarm.y + _btnSilenceAlarm.h)) {
                     systemController.silenceAlarm();
                 }
-                // Reset Pump Timeout Button
+                // Reset Pump Timeout Button (Unprotected fault recovery)
                 else if (_touchX >= _btnResetPump.x && _touchX <= (_btnResetPump.x + _btnResetPump.w) &&
                          _touchY >= _btnResetPump.y && _touchY <= (_btnResetPump.y + _btnResetPump.h)) {
                     systemController.resetPumpTimeout();
                 }
-                // Valve Override Cycle (Auto -> Force Open -> Force Close -> Auto)
+                // Valve Override Cycle (Protected)
                 else if (_touchX >= _btnValveOverride.x && _touchX <= (_btnValveOverride.x + _btnValveOverride.w) &&
                          _touchY >= _btnValveOverride.y && _touchY <= (_btnValveOverride.y + _btnValveOverride.h)) {
-                    OverrideMode current = systemController.getTelemetry().valveOverride;
-                    OverrideMode next = (current == MODE_AUTO) ? MODE_FORCE_ON : ((current == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO);
-                    systemController.setLineValveOverride(next);
+                    requestProtectedAction(ACT_VALVE_OVERRIDE);
                 }
-                // Pump Override Cycle (Auto -> Force On -> Force Off -> Auto)
+                // Pump Override Cycle (Protected)
                 else if (_touchX >= _btnPumpOverride.x && _touchX <= (_btnPumpOverride.x + _btnPumpOverride.w) &&
                          _touchY >= _btnPumpOverride.y && _touchY <= (_btnPumpOverride.y + _btnPumpOverride.h)) {
-                    OverrideMode current = systemController.getTelemetry().pumpOverride;
-                    OverrideMode next = (current == MODE_AUTO) ? MODE_FORCE_ON : ((current == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO);
-                    systemController.setPumpOverride(next);
+                    requestProtectedAction(ACT_PUMP_OVERRIDE);
                 }
             }
             else if (_currentPage == PAGE_SETTINGS) {
-                // 1. Pump Override Cycle
+                // 1. Pump Override (Protected)
                 if (_touchX >= _btnSetPump.x && _touchX <= (_btnSetPump.x + _btnSetPump.w) &&
                     _touchY >= _btnSetPump.y && _touchY <= (_btnSetPump.y + _btnSetPump.h)) {
-                    OverrideMode cur = systemController.getTelemetry().pumpOverride;
-                    systemController.setPumpOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_PUMP_OVERRIDE);
                 }
-                // 2. Line Valve Override Cycle
+                // 2. Line Valve Override (Protected)
                 else if (_touchX >= _btnSetValve.x && _touchX <= (_btnSetValve.x + _btnSetValve.w) &&
                          _touchY >= _btnSetValve.y && _touchY <= (_btnSetValve.y + _btnSetValve.h)) {
-                    OverrideMode cur = systemController.getTelemetry().valveOverride;
-                    systemController.setLineValveOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_VALVE_OVERRIDE);
                 }
-                // 3. Tank High Override Cycle (Auto -> Force Full [1] -> Force Normal [2] -> Auto)
+                // 3. Tank High Override (Protected)
                 else if (_touchX >= _btnSetHigh.x && _touchX <= (_btnSetHigh.x + _btnSetHigh.w) &&
                          _touchY >= _btnSetHigh.y && _touchY <= (_btnSetHigh.y + _btnSetHigh.h)) {
-                    OverrideMode cur = systemController.getTelemetry().tankHighOverride;
-                    systemController.setTankHighOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_HIGH_OVERRIDE);
                 }
-                // 4. Tank Low Override Cycle (Auto -> Force Low Demand [1] -> Force OK [2] -> Auto)
+                // 4. Tank Low Override (Protected)
                 else if (_touchX >= _btnSetLow.x && _touchX <= (_btnSetLow.x + _btnSetLow.w) &&
                          _touchY >= _btnSetLow.y && _touchY <= (_btnSetLow.y + _btnSetLow.h)) {
-                    OverrideMode cur = systemController.getTelemetry().tankLowOverride;
-                    systemController.setTankLowOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_LOW_OVERRIDE);
                 }
-                // 5. Tank Empty Override Cycle (Auto -> Force Empty Alarm [1] -> Force OK [2] -> Auto)
+                // 5. Tank Empty Override (Protected)
                 else if (_touchX >= _btnSetEmpty.x && _touchX <= (_btnSetEmpty.x + _btnSetEmpty.w) &&
                          _touchY >= _btnSetEmpty.y && _touchY <= (_btnSetEmpty.y + _btnSetEmpty.h)) {
-                    OverrideMode cur = systemController.getTelemetry().tankEmptyOverride;
-                    systemController.setTankEmptyOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_EMPTY_OVERRIDE);
                 }
-                // 6. Overcurrent Override Cycle
+                // 6. Overcurrent Override (Protected)
                 else if (_touchX >= _btnSetOvercurrent.x && _touchX <= (_btnSetOvercurrent.x + _btnSetOvercurrent.w) &&
                          _touchY >= _btnSetOvercurrent.y && _touchY <= (_btnSetOvercurrent.y + _btnSetOvercurrent.h)) {
-                    OverrideMode cur = systemController.getTelemetry().overcurrentOverride;
-                    systemController.setOvercurrentOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_OVERCURRENT_OVERRIDE);
                 }
-                // 7. Undercurrent Override Cycle
+                // 7. Undercurrent Override (Protected)
                 else if (_touchX >= _btnSetUndercurrent.x && _touchX <= (_btnSetUndercurrent.x + _btnSetUndercurrent.w) &&
                          _touchY >= _btnSetUndercurrent.y && _touchY <= (_btnSetUndercurrent.y + _btnSetUndercurrent.h)) {
-                    OverrideMode cur = systemController.getTelemetry().undercurrentOverride;
-                    systemController.setUndercurrentOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_UNDERCURRENT_OVERRIDE);
                 }
-                // 8. Freeze Override Cycle
+                // 8. Freeze Override (Protected)
                 else if (_touchX >= _btnSetFreeze.x && _touchX <= (_btnSetFreeze.x + _btnSetFreeze.w) &&
                          _touchY >= _btnSetFreeze.y && _touchY <= (_btnSetFreeze.y + _btnSetFreeze.h)) {
-                    OverrideMode cur = systemController.getTelemetry().freezeOverride;
-                    systemController.setFreezeOverride((cur == MODE_AUTO) ? MODE_FORCE_ON : ((cur == MODE_FORCE_ON) ? MODE_FORCE_OFF : MODE_AUTO));
+                    requestProtectedAction(ACT_FREEZE_OVERRIDE);
                 }
-                // 9. Reset All to Auto
+                // 9. Reset All to Auto (Protected)
                 else if (_touchX >= _btnResetAllAuto.x && _touchX <= (_btnResetAllAuto.x + _btnResetAllAuto.w) &&
                          _touchY >= _btnResetAllAuto.y && _touchY <= (_btnResetAllAuto.y + _btnResetAllAuto.h)) {
-                    systemController.resetAllOverrides();
+                    requestProtectedAction(ACT_RESET_ALL_AUTO);
                 }
                 // 10. Back to Dashboard
                 else if (_touchX >= _btnBackToDash.x && _touchX <= (_btnBackToDash.x + _btnBackToDash.w) &&
@@ -234,18 +372,25 @@ void DisplayGUI::drawHeader(bool wifiConnected, bool bleConnected) {
     uint16_t dashTxtColor = (_currentPage == PAGE_DASHBOARD) ? TFT_BLACK : TFT_WHITE;
     _sprite.fillRoundRect(_tabDashboard.x, _tabDashboard.y, _tabDashboard.w, _tabDashboard.h, 4, dashColor);
     _sprite.setTextColor(dashTxtColor, dashColor);
-    _sprite.drawString("DASHBOARD", _tabDashboard.x + 14, _tabDashboard.y + 7);
+    _sprite.drawString("DASHBOARD", _tabDashboard.x + 13, _tabDashboard.y + 7);
 
     // Tab 2: SETTINGS
     uint16_t setBgColor = (_currentPage == PAGE_SETTINGS) ? 0x03FF : 0x2945;
     uint16_t setTxtColor = (_currentPage == PAGE_SETTINGS) ? TFT_BLACK : TFT_WHITE;
     _sprite.fillRoundRect(_tabSettings.x, _tabSettings.y, _tabSettings.w, _tabSettings.h, 4, setBgColor);
     _sprite.setTextColor(setTxtColor, setBgColor);
-    _sprite.drawString("SETTINGS", _tabSettings.x + 18, _tabSettings.y + 7);
+    _sprite.drawString("SETTINGS", _tabSettings.x + 17, _tabSettings.y + 7);
+
+    // Security Status Indicator
+    bool isUnlocked = (millis() < _unlockedUntil);
+    uint16_t lockBg = isUnlocked ? 0x03E0 : 0x39E7;
+    _sprite.fillRoundRect(368, 4, 38, 24, 4, lockBg);
+    _sprite.setTextColor(TFT_WHITE, lockBg);
+    _sprite.drawString(isUnlocked ? "UNLK" : "LOCK", 372, 9);
 
     // Network Badges
     _sprite.setTextColor(wifiConnected ? TFT_GREEN : 0x7BEF, 0x18C3);
-    _sprite.drawString(wifiConnected ? "WIFI" : "NO-WIFI", 412, 5);
+    _sprite.drawString(wifiConnected ? "WIFI" : "NO-WF", 412, 5);
     _sprite.setTextColor(bleConnected ? TFT_CYAN : 0x7BEF, 0x18C3);
     _sprite.drawString(bleConnected ? "BLE-ON" : "BLE-RDY", 412, 17);
 }
@@ -315,6 +460,9 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     } else if (telemetry.pumpUndercurrentTrip) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
         _sprite.drawString("DRY RUN TRIP!", cx + 115, cy + 28);
+    } else if (telemetry.pumpCurrentFaultPending) {
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+        _sprite.drawString("FAULT WARNING (PULSE)", cx + 115, cy + 28);
     } else if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
         _sprite.setTextColor(TFT_CYAN, 0x2124);
         _sprite.drawString("RUNNING (ASSIST)", cx + 115, cy + 28);
@@ -334,7 +482,11 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     _sprite.drawString("PUMP TIMER:", cx + 10, cy + 48);
 
     char timerStr[54];
-    if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
+    if (telemetry.pumpCurrentFaultPending) {
+        unsigned long remSec = telemetry.pumpCurrentFaultRemainingMs / 1000UL;
+        snprintf(timerStr, sizeof(timerStr), "PULSE ALARM (%02lus to trip)", remSec);
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+    } else if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
         unsigned long elapsedSec = telemetry.pumpRunElapsedMs / 1000UL;
         snprintf(timerStr, sizeof(timerStr), "ON: %02lu:%02lu / 25:00", elapsedSec / 60, elapsedSec % 60);
         _sprite.setTextColor(TFT_CYAN, 0x2124);
@@ -359,9 +511,15 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     // 4. Overcurrent Sensor Status (cy + 68)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
     _sprite.drawString("OVERCURRENT:", cx + 10, cy + 68);
-    if (telemetry.pumpOvercurrentTrip || telemetry.pumpOvercurrent) {
+    if (telemetry.pumpOvercurrentTrip) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString(telemetry.pumpOvercurrentTrip ? "FAULT (TRIPPED)" : "ACTIVE (> LIMIT)", cx + 115, cy + 68);
+        _sprite.drawString("FAULT (TRIPPED)", cx + 115, cy + 68);
+    } else if (telemetry.isOvercurrentPending) {
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+        _sprite.drawString("WARNING (1-MIN PULSE)", cx + 115, cy + 68);
+    } else if (telemetry.pumpOvercurrent) {
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+        _sprite.drawString("ACTIVE (> LIMIT)", cx + 115, cy + 68);
     } else {
         _sprite.setTextColor(TFT_GREEN, 0x2124);
         _sprite.drawString("NORMAL (< LIMIT)", cx + 115, cy + 68);
@@ -370,9 +528,15 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     // 5. Undercurrent Sensor Status (cy + 88)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
     _sprite.drawString("UNDERCURRENT:", cx + 10, cy + 88);
-    if (telemetry.pumpUndercurrentTrip || telemetry.pumpUndercurrent) {
+    if (telemetry.pumpUndercurrentTrip) {
+        _sprite.setTextColor(TFT_RED, 0x2124);
+        _sprite.drawString("DRY RUN (TRIPPED)", cx + 115, cy + 88);
+    } else if (telemetry.isUndercurrentPending) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString(telemetry.pumpUndercurrentTrip ? "DRY RUN (TRIPPED)" : "DRY RUN DETECTED", cx + 115, cy + 88);
+        _sprite.drawString("WARNING (1-MIN PULSE)", cx + 115, cy + 88);
+    } else if (telemetry.pumpUndercurrent) {
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+        _sprite.drawString("DRY RUN DETECTED", cx + 115, cy + 88);
     } else {
         _sprite.setTextColor(TFT_GREEN, 0x2124);
         _sprite.drawString("NORMAL (PRIME OK)", cx + 115, cy + 88);
@@ -407,6 +571,8 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         bannerBg = TFT_RED;
     } else if (telemetry.pumpUndercurrentTrip) {
         bannerBg = 0xFD20;
+    } else if (telemetry.pumpCurrentFaultPending) {
+        bannerBg = 0xFD20; // Amber warning
     } else if (telemetry.alarm) {
         bannerBg = TFT_RED;
     } else if (telemetry.alarmSilenced) {
@@ -423,6 +589,16 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     } else if (telemetry.pumpUndercurrentTrip) {
         _sprite.drawString("! WARNING: DRY RUN / SUCTION TRIP !", cx + 16, cy + 162);
         _sprite.drawString("Pump stopped. Press RESET to clear.", cx + 16, cy + 178);
+    } else if (telemetry.pumpCurrentFaultPending) {
+        _sprite.setTextColor(TFT_BLACK, bannerBg);
+        if (telemetry.isOvercurrentPending) {
+            _sprite.drawString("! OVERCURRENT WARNING: PULSING ALARM !", cx + 12, cy + 160);
+        } else {
+            _sprite.drawString("! UNDERCURRENT WARNING: PULSING ALARM !", cx + 12, cy + 160);
+        }
+        char warnStr[42];
+        snprintf(warnStr, sizeof(warnStr), "Pump stopping in %02lu seconds...", telemetry.pumpCurrentFaultRemainingMs / 1000UL);
+        _sprite.drawString(warnStr, cx + 12, cy + 178);
     } else if (telemetry.alarm) {
         _sprite.drawString("! CRITICAL: TANK EMPTY ALARM SOUNDING !", cx + 16, cy + 168);
     } else if (telemetry.alarmSilenced) {
@@ -436,21 +612,21 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
 
 void DisplayGUI::drawControlButtons(const SystemTelemetry& telemetry) {
     // 1. Silence Alarm Button
-    uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip) ? TFT_RED : 0x39E7;
+    uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip || telemetry.pumpCurrentFaultPending) ? TFT_RED : 0x39E7;
     _sprite.fillRoundRect(_btnSilenceAlarm.x, _btnSilenceAlarm.y, _btnSilenceAlarm.w, _btnSilenceAlarm.h, 6, silenceColor);
     _sprite.setTextColor(TFT_WHITE, silenceColor);
     _sprite.drawString("SILENCE", _btnSilenceAlarm.x + 24, _btnSilenceAlarm.y + 10);
     _sprite.drawString("ALARM", _btnSilenceAlarm.x + 28, _btnSilenceAlarm.y + 26);
 
     // 2. Reset Pump & Fault Button
-    bool hasFaultOrTimeout = (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN || telemetry.pumpOvercurrentTrip || telemetry.pumpUndercurrentTrip);
+    bool hasFaultOrTimeout = (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN || telemetry.pumpOvercurrentTrip || telemetry.pumpUndercurrentTrip || telemetry.pumpCurrentFaultPending);
     uint16_t resetColor = hasFaultOrTimeout ? 0xFD20 : 0x2144;
     _sprite.fillRoundRect(_btnResetPump.x, _btnResetPump.y, _btnResetPump.w, _btnResetPump.h, 6, resetColor);
     _sprite.setTextColor(TFT_WHITE, resetColor);
     _sprite.drawString("RESET PUMP", _btnResetPump.x + 18, _btnResetPump.y + 10);
     _sprite.drawString(hasFaultOrTimeout ? "FAULT/RESET" : "TIMEOUT", _btnResetPump.x + 16, _btnResetPump.y + 26);
 
-    // 3. Valve Override Cycle Button
+    // 3. Valve Override Cycle Button (Protected)
     uint16_t valveColor = (telemetry.valveOverride == MODE_AUTO) ? 0x1B2E : 0x632C;
     _sprite.fillRoundRect(_btnValveOverride.x, _btnValveOverride.y, _btnValveOverride.w, _btnValveOverride.h, 6, valveColor);
     _sprite.setTextColor(TFT_WHITE, valveColor);
@@ -458,7 +634,7 @@ void DisplayGUI::drawControlButtons(const SystemTelemetry& telemetry) {
     const char* vModeStr = (telemetry.valveOverride == MODE_AUTO) ? "AUTO" : ((telemetry.valveOverride == MODE_FORCE_ON) ? "FORCE OPEN" : "FORCE CLS");
     _sprite.drawString(vModeStr, _btnValveOverride.x + 18, _btnValveOverride.y + 26);
 
-    // 4. Pump Override Cycle Button
+    // 4. Pump Override Cycle Button (Protected)
     uint16_t pumpColor = (telemetry.pumpOverride == MODE_AUTO) ? 0x1B2E : 0x632C;
     _sprite.fillRoundRect(_btnPumpOverride.x, _btnPumpOverride.y, _btnPumpOverride.w, _btnPumpOverride.h, 6, pumpColor);
     _sprite.setTextColor(TFT_WHITE, pumpColor);
@@ -470,7 +646,7 @@ void DisplayGUI::drawControlButtons(const SystemTelemetry& telemetry) {
 void DisplayGUI::drawSettingsPage(const SystemTelemetry& telemetry) {
     // Top Subheader
     _sprite.setTextColor(0x03FF, TFT_BLACK);
-    _sprite.drawString("MANUAL OVERRIDES & SENSOR DIAGNOSTICS (TAP TO CYCLE)", 12, 38);
+    _sprite.drawString("MANUAL OVERRIDES & DIAGNOSTICS (PIN PROTECTED)", 12, 38);
 
     auto drawTile = [this](const Rect& r, const char* label, const char* modeStr, uint16_t badgeColor, const char* subText) {
         _sprite.fillRoundRect(r.x, r.y, r.w, r.h, 6, 0x2124);
@@ -542,6 +718,63 @@ void DisplayGUI::drawSettingsPage(const SystemTelemetry& telemetry) {
     _sprite.drawString("RETURN TO DASHBOARD", _btnBackToDash.x + 28, _btnBackToDash.y + 16);
 }
 
+void DisplayGUI::drawPinKeypad() {
+    // Dim background overlay
+    _sprite.fillRect(0, 0, 480, 320, 0x0821); // Translucent-style dark veil
+
+    // Modal Window (X=90, Y=26, W=300, H=268)
+    int mx = 90, my = 26, mw = 300, mh = 268;
+    _sprite.fillRoundRect(mx, my, mw, mh, 10, 0x18E3);
+    _sprite.drawRoundRect(mx, my, mw, mh, 10, 0x03FF);
+
+    // Modal Header
+    _sprite.setTextColor(0x03FF, 0x18E3);
+    _sprite.setTextSize(1);
+    _sprite.drawString("SECURITY PIN REQUIRED", mx + 20, my + 10);
+
+    // Close 'X' button in top right
+    _sprite.fillRoundRect(mx + mw - 34, my + 6, 26, 22, 4, 0x632C);
+    _sprite.setTextColor(TFT_WHITE, 0x632C);
+    _sprite.drawString("X", mx + mw - 25, my + 10);
+
+    // PIN Display Box
+    int bx = mx + 20, by = my + 34, bw = mw - 40, bh = 34;
+    _sprite.fillRoundRect(bx, by, bw, bh, 6, 0x0821);
+    _sprite.drawRoundRect(bx, by, bw, bh, 6, _pinError ? TFT_RED : 0x03FF);
+
+    if (_pinError) {
+        _sprite.setTextColor(TFT_RED, 0x0821);
+        _sprite.drawString("WRONG PIN! TRY AGAIN", bx + 16, by + 10);
+    } else {
+        String dots = "";
+        for (size_t i = 0; i < _enteredPin.length(); i++) {
+            dots += "* ";
+        }
+        if (dots.length() == 0) {
+            _sprite.setTextColor(0x7BEF, 0x0821);
+            _sprite.drawString("Enter 4-digit PIN...", bx + 16, by + 10);
+        } else {
+            _sprite.setTextColor(0x03FF, 0x0821);
+            _sprite.drawString(dots.c_str(), bx + 24, by + 10);
+        }
+    }
+
+    // Draw Keypad Buttons (0-11)
+    const char* keyLabels[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "OK" };
+    for (int i = 0; i < 12; i++) {
+        uint16_t btnBg = 0x2945;
+        uint16_t btnTxt = TFT_WHITE;
+        if (i == 9) { // CLR
+            btnBg = 0x8000; // Red-dark
+        } else if (i == 11) { // OK
+            btnBg = 0x03E0; // Green
+        }
+        _sprite.fillRoundRect(_keypadBtns[i].x, _keypadBtns[i].y, _keypadBtns[i].w, _keypadBtns[i].h, 5, btnBg);
+        _sprite.setTextColor(btnTxt, btnBg);
+        _sprite.drawString(keyLabels[i], _keypadBtns[i].x + (_keypadBtns[i].w / 2) - 6, _keypadBtns[i].y + 10);
+    }
+}
+
 void DisplayGUI::update(const SystemTelemetry& telemetry, bool wifiConnected, bool bleConnected) {
     handleTouchInput();
 
@@ -559,6 +792,11 @@ void DisplayGUI::update(const SystemTelemetry& telemetry, bool wifiConnected, bo
         drawControlButtons(telemetry);
     } else {
         drawSettingsPage(telemetry);
+    }
+
+    // If PIN Keypad modal is active, draw it on top
+    if (_pinModalActive) {
+        drawPinKeypad();
     }
 
     _sprite.pushSprite(0, 0);

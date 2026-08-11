@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
       this.osc = null;
       this.gain = null;
       this.isPlaying = false;
+      this.isPulsing = false;
       this.muted = false;
     }
 
@@ -26,23 +27,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    startAlarm() {
-      if (this.muted || this.isPlaying) return;
+    startAlarm(pulsing = false) {
+      if (this.muted) return;
+      if (this.isPlaying && this.isPulsing === pulsing) return;
+      
+      this.stopAlarm();
       this.init();
       if (!this.ctx) return;
 
       this.isPlaying = true;
+      this.isPulsing = pulsing;
       this.osc = this.ctx.createOscillator();
       this.gain = this.ctx.createGain();
 
-      this.osc.type = 'sawtooth';
-      this.osc.frequency.setValueAtTime(880, this.ctx.currentTime); // A5
+      this.osc.type = pulsing ? 'triangle' : 'sawtooth';
+      this.osc.frequency.setValueAtTime(pulsing ? 660 : 880, this.ctx.currentTime); // A5
 
-      // Pulsing frequency modulation for industrial siren sound
+      // Pulsing frequency modulation for industrial siren / warning beeps
       const lfo = this.ctx.createOscillator();
-      lfo.frequency.value = 4; // 4 pulses per second
+      lfo.frequency.value = pulsing ? 2 : 4; // 2Hz for pulse warning, 4Hz for critical siren
       const lfoGain = this.ctx.createGain();
-      lfoGain.gain.value = 220; // modulate between 660Hz and 1100Hz
+      lfoGain.gain.value = pulsing ? 300 : 220;
       lfo.connect(this.osc.frequency);
       lfo.start();
 
@@ -61,13 +66,200 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (e) {}
       this.isPlaying = false;
+      this.isPulsing = false;
     }
   }
 
   const alarmAudio = new AudioAlarm();
 
   // -------------------------------------------------------------------------
-  // 2. Initialize Subsystems
+  // 2. Password Protection & Security System
+  // -------------------------------------------------------------------------
+  const VALID_PASSWORDS = ['5100', 'tweed123'];
+  let isControlsUnlocked = false;
+  let unlockTimer = null;
+  let pendingProtectedAction = null;
+  let activePassword = '5100';
+
+  const passwordModal = document.getElementById('passwordModal');
+  const passwordInput = document.getElementById('passwordInput');
+  const authErrorMsg = document.getElementById('authErrorMsg');
+  const chkKeepUnlocked = document.getElementById('chkKeepUnlocked');
+  const btnLockStatus = document.getElementById('btnLockStatus');
+  const lockIcon = document.getElementById('lockIcon');
+  const lockText = document.getElementById('lockText');
+
+  function updateLockUI() {
+    if (btnLockStatus) {
+      if (isControlsUnlocked) {
+        btnLockStatus.className = 'btn-lock-status unlocked';
+        if (lockIcon) lockIcon.innerText = '🔓';
+        if (lockText) lockText.innerText = 'Controls Unlocked';
+        btnLockStatus.title = 'Click to lock controls immediately';
+      } else {
+        btnLockStatus.className = 'btn-lock-status locked';
+        if (lockIcon) lockIcon.innerText = '🔒';
+        if (lockText) lockText.innerText = 'Controls Locked';
+        btnLockStatus.title = 'Click to enter PIN and unlock controls';
+      }
+    }
+  }
+
+  function unlockControls(durationMs = 10 * 60 * 1000) {
+    isControlsUnlocked = true;
+    updateLockUI();
+    if (unlockTimer) {
+      clearTimeout(unlockTimer);
+      unlockTimer = null;
+    }
+    if (durationMs > 0) {
+      unlockTimer = setTimeout(() => {
+        lockControls();
+      }, durationMs);
+    }
+  }
+
+  function lockControls() {
+    isControlsUnlocked = false;
+    if (unlockTimer) {
+      clearTimeout(unlockTimer);
+      unlockTimer = null;
+    }
+    updateLockUI();
+  }
+
+  function openPasswordModal(actionCallback) {
+    pendingProtectedAction = actionCallback;
+    if (passwordInput) {
+      passwordInput.value = '';
+    }
+    if (authErrorMsg) {
+      authErrorMsg.style.display = 'none';
+    }
+    if (passwordModal) {
+      passwordModal.classList.add('active');
+    }
+    setTimeout(() => {
+      if (passwordInput) passwordInput.focus();
+    }, 100);
+  }
+
+  function closePasswordModal() {
+    if (passwordModal) {
+      passwordModal.classList.remove('active');
+    }
+    pendingProtectedAction = null;
+  }
+
+  function verifyAndAuthenticate(enteredPass) {
+    const p = enteredPass.trim();
+    if (VALID_PASSWORDS.includes(p)) {
+      activePassword = p;
+      if (chkKeepUnlocked && chkKeepUnlocked.checked) {
+        unlockControls(10 * 60 * 1000); // 10 minutes session
+      } else {
+        unlockControls(60 * 1000); // 1 minute single-use session
+      }
+      
+      const act = pendingProtectedAction;
+      closePasswordModal();
+      if (act) {
+        act(activePassword);
+      }
+      return true;
+    } else {
+      if (authErrorMsg) {
+        authErrorMsg.style.display = 'block';
+      }
+      if (passwordInput) {
+        passwordInput.value = '';
+        passwordInput.focus();
+      }
+      return false;
+    }
+  }
+
+  function requirePassword(actionCallback) {
+    if (isControlsUnlocked) {
+      actionCallback(activePassword);
+    } else {
+      openPasswordModal(actionCallback);
+    }
+  }
+
+  // Password Modal Event Listeners
+  if (btnLockStatus) {
+    btnLockStatus.addEventListener('click', () => {
+      if (isControlsUnlocked) {
+        lockControls();
+      } else {
+        openPasswordModal(() => {});
+      }
+    });
+  }
+
+  const btnSubmitPassword = document.getElementById('btnSubmitPassword');
+  if (btnSubmitPassword) {
+    btnSubmitPassword.addEventListener('click', () => {
+      verifyAndAuthenticate(passwordInput ? passwordInput.value : '');
+    });
+  }
+
+  const btnCancelPassword = document.getElementById('btnCancelPassword');
+  if (btnCancelPassword) {
+    btnCancelPassword.addEventListener('click', () => {
+      closePasswordModal();
+    });
+  }
+
+  if (passwordInput) {
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        verifyAndAuthenticate(passwordInput.value);
+      } else if (e.key === 'Escape') {
+        closePasswordModal();
+      }
+    });
+  }
+
+  // Password Visibility Toggle
+  const btnTogglePwdVis = document.getElementById('btnTogglePwdVis');
+  if (btnTogglePwdVis && passwordInput) {
+    btnTogglePwdVis.addEventListener('click', () => {
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        btnTogglePwdVis.innerText = '🙈';
+      } else {
+        passwordInput.type = 'password';
+        btnTogglePwdVis.innerText = '👁️';
+      }
+    });
+  }
+
+  // Touch / On-Screen Numpad Buttons
+  document.querySelectorAll('.auth-numpad .btn-num').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!passwordInput) return;
+      const val = btn.getAttribute('data-val');
+      if (val === 'CLR') {
+        passwordInput.value = '';
+        if (authErrorMsg) authErrorMsg.style.display = 'none';
+      } else if (val === 'DEL') {
+        passwordInput.value = passwordInput.value.slice(0, -1);
+      } else if (val) {
+        passwordInput.value += val;
+        if (authErrorMsg) authErrorMsg.style.display = 'none';
+        if (passwordInput.value.length === 4) {
+          // Auto-submit 4-digit PIN for slick user experience
+          verifyAndAuthenticate(passwordInput.value);
+        }
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. Initialize Subsystems
   // -------------------------------------------------------------------------
   const schematic = new SystemSchematic('schematicCanvas');
 
@@ -79,9 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI(data, source);
     if (schematic) schematic.updateState(data);
 
-    // Audio alarm management
+    // Audio alarm management (supporting 1-minute pulsing warning)
     if (data.alarm && !data.alarmSilenced) {
-      alarmAudio.startAlarm();
+      alarmAudio.startAlarm(Boolean(data.alarmPulsing || data.pumpCurrentFaultPending));
     } else {
       alarmAudio.stopAlarm();
     }
@@ -104,10 +296,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const simulator = new HardwareSimulator(onTelemetryReceived);
 
   // -------------------------------------------------------------------------
-  // 3. UI Update Renderer
+  // 4. UI Update Renderer
   // -------------------------------------------------------------------------
   function updateUI(t, source) {
-    // 1. Critical Alarm Banners
+    // 1A. Critical Tank Empty Alarm Banner
     const alarmBanner = document.getElementById('alarmBanner');
     if (t.alarm && !t.alarmSilenced && t.tankEmpty) {
       alarmBanner.classList.add('active');
@@ -115,28 +307,66 @@ document.addEventListener('DOMContentLoaded', () => {
       alarmBanner.classList.remove('active');
     }
 
-    // Overcurrent banner
-    const overcurrentBanner = document.getElementById('overcurrentBanner');
-    if (t.pumpOvercurrentTrip || (t.pumpOvercurrent && (t.pump || t.pumpTimingState === 1))) {
-      overcurrentBanner.classList.add('active');
-    } else {
-      overcurrentBanner.classList.remove('active');
+    // 1B-PRE. Overcurrent 1-Minute Warning Banner (Pulsing Alarm)
+    const ocWarnBanner = document.getElementById('overcurrentWarningBanner');
+    const ocCountdown = document.getElementById('overcurrentCountdown');
+    const isOcPending = Boolean(t.pumpCurrentFaultPending && (t.isOvercurrentPending || (t.pumpOvercurrent && !t.pumpUndercurrent)));
+    if (ocWarnBanner) {
+      if (isOcPending) {
+        ocWarnBanner.classList.add('active');
+        const remSec = (t.pumpCurrentFaultRemainingSec !== undefined) 
+          ? t.pumpCurrentFaultRemainingSec 
+          : Math.ceil((t.pumpCurrentFaultRemainingMs || 0) / 1000);
+        if (ocCountdown) ocCountdown.innerText = `${remSec}s`;
+      } else {
+        ocWarnBanner.classList.remove('active');
+      }
     }
 
-    // Undercurrent banner
+    // 1B. Latched Overcurrent Trip Banner
+    const overcurrentBanner = document.getElementById('overcurrentBanner');
+    if (overcurrentBanner) {
+      if (t.pumpOvercurrentTrip) {
+        overcurrentBanner.classList.add('active');
+      } else {
+        overcurrentBanner.classList.remove('active');
+      }
+    }
+
+    // 1C-PRE. Undercurrent 1-Minute Warning Banner (Pulsing Alarm)
+    const ucWarnBanner = document.getElementById('undercurrentWarningBanner');
+    const ucCountdown = document.getElementById('undercurrentCountdown');
+    const isUcPending = Boolean(t.pumpCurrentFaultPending && (t.isUndercurrentPending || (t.pumpUndercurrent && !t.pumpOvercurrent)));
+    if (ucWarnBanner) {
+      if (isUcPending) {
+        ucWarnBanner.classList.add('active');
+        const remSec = (t.pumpCurrentFaultRemainingSec !== undefined) 
+          ? t.pumpCurrentFaultRemainingSec 
+          : Math.ceil((t.pumpCurrentFaultRemainingMs || 0) / 1000);
+        if (ucCountdown) ucCountdown.innerText = `${remSec}s`;
+      } else {
+        ucWarnBanner.classList.remove('active');
+      }
+    }
+
+    // 1C. Latched Undercurrent / Dry Run Banner
     const undercurrentBanner = document.getElementById('undercurrentBanner');
-    if (t.pumpUndercurrentTrip || (t.pumpUndercurrent && (t.pump || t.pumpTimingState === 1))) {
-      undercurrentBanner.classList.add('active');
-    } else {
-      undercurrentBanner.classList.remove('active');
+    if (undercurrentBanner) {
+      if (t.pumpUndercurrentTrip) {
+        undercurrentBanner.classList.add('active');
+      } else {
+        undercurrentBanner.classList.remove('active');
+      }
     }
 
     // 2. Freeze Warning Banner
     const freezeBanner = document.getElementById('freezeBanner');
-    if (t.freezeSensor) {
-      freezeBanner.classList.add('active');
-    } else {
-      freezeBanner.classList.remove('active');
+    if (freezeBanner) {
+      if (t.freezeSensor) {
+        freezeBanner.classList.add('active');
+      } else {
+        freezeBanner.classList.remove('active');
+      }
     }
 
     // 3. Float Switches Cards
@@ -237,6 +467,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (t.pumpUndercurrentTrip) {
       pumpVal.innerText = 'DRY RUN TRIP!';
       pumpVal.className = 'metric-val val-amber';
+    } else if (t.pumpCurrentFaultPending) {
+      pumpVal.innerText = 'FAULT WARNING (PULSE)';
+      pumpVal.className = 'metric-val val-amber';
     } else if (t.pumpTimingState === 1 || t.pump) {
       pumpVal.innerText = 'RUNNING (ASSIST)';
       pumpVal.className = 'metric-val val-cyan';
@@ -266,8 +499,19 @@ document.addEventListener('DOMContentLoaded', () => {
       durationBadge.innerText = 'TRIPPED';
       progressBar.className = 'progress-bar-fill fault';
       progressBar.style.width = '100%';
+    } else if (t.pumpCurrentFaultPending) {
+      const remSec = (t.pumpCurrentFaultRemainingSec !== undefined)
+        ? t.pumpCurrentFaultRemainingSec
+        : Math.ceil((t.pumpCurrentFaultRemainingMs || 0) / 1000);
+      timerLabel.innerText = 'Pre-Trip Warning:';
+      timerDigits.innerText = `PULSING ALARM (${remSec}s)`;
+      statusDesc.innerText = `Transient overload/dry-run sensed. Pulsing alarm for 1 min before stopping.`;
+      durationBadge.className = 'badge-pill cooldown';
+      durationBadge.innerText = `${remSec}s REM`;
+      progressBar.className = 'progress-bar-fill cooldown';
+      progressBar.style.width = `${Math.min(100, (remSec / 60) * 100)}%`;
     } else if (t.pumpTimingState === 1 || t.pump) {
-      const elapsed = t.pumpRunElapsedSec || 0;
+      const elapsed = t.pumpRunElapsedSec || (t.pumpRunElapsedMs ? Math.floor(t.pumpRunElapsedMs / 1000) : 0);
       const maxSec = t.pumpRunMaxSec || 1500;
       const mm = Math.floor(elapsed / 60).toString().padStart(2, '0');
       const ss = (elapsed % 60).toString().padStart(2, '0');
@@ -279,9 +523,9 @@ document.addEventListener('DOMContentLoaded', () => {
       progressBar.className = 'progress-bar-fill';
       progressBar.style.width = Math.min(100, (elapsed / maxSec) * 100) + '%';
     } else if (t.pumpTimingState === 2 || t.pumpTimedOut) {
-      const rem = t.pumpCooldownRemainingSec || 0;
+      const rem = t.pumpCooldownRemainingSec || (t.pumpCooldownRemainingMs ? Math.floor(t.pumpCooldownRemainingMs / 1000) : 0);
       const totalSec = t.pumpCooldownTotalSec || 7200;
-      const ranSec = t.pumpLastRunDurationSec || (25 * 60);
+      const ranSec = t.pumpLastRunDurationSec || (t.pumpLastRunDurationMs ? Math.floor(t.pumpLastRunDurationMs / 1000) : 25 * 60);
       const ranMm = Math.floor(ranSec / 60).toString().padStart(2, '0');
       const ranSs = (ranSec % 60).toString().padStart(2, '0');
       const hh = Math.floor(rem / 3600);
@@ -306,9 +550,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       timerLabel.innerText = 'Pump Run Time:';
       timerDigits.innerText = 'STANDBY';
-      if (t.pumpLastRunDurationSec && t.pumpLastRunDurationSec > 0) {
-        const lastMm = Math.floor(t.pumpLastRunDurationSec / 60).toString().padStart(2, '0');
-        const lastSs = (t.pumpLastRunDurationSec % 60).toString().padStart(2, '0');
+      const lastRan = t.pumpLastRunDurationSec || (t.pumpLastRunDurationMs ? Math.floor(t.pumpLastRunDurationMs / 1000) : 0);
+      if (lastRan > 0) {
+        const lastMm = Math.floor(lastRan / 60).toString().padStart(2, '0');
+        const lastSs = (lastRan % 60).toString().padStart(2, '0');
         statusDesc.innerText = `Standby. Last pump on-time: ${lastMm}m ${lastSs}`;
       } else {
         statusDesc.innerText = 'Holding tank standby. Auto control armed.';
@@ -322,9 +567,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 6. Current Sensors Card
     const overInd = document.getElementById('currentOverInd');
     const overState = document.getElementById('currentOverState');
-    if (t.pumpOvercurrentTrip || t.pumpOvercurrent) {
+    if (t.pumpOvercurrentTrip || t.pumpOvercurrent || t.isOvercurrentPending) {
       overInd.className = 'float-indicator active-red';
-      overState.innerText = t.pumpOvercurrentTrip ? 'FAULT (TRIPPED)' : 'ACTIVE (> LIMIT)';
+      overState.innerText = t.pumpOvercurrentTrip ? 'FAULT (TRIPPED)' : (t.isOvercurrentPending ? 'WARNING (PULSE)' : 'ACTIVE (> LIMIT)');
       overState.className = 'float-state-pill val-red';
     } else {
       overInd.className = 'float-indicator active-green';
@@ -334,9 +579,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const underInd = document.getElementById('currentUnderInd');
     const underState = document.getElementById('currentUnderState');
-    if (t.pumpUndercurrentTrip || t.pumpUndercurrent) {
+    if (t.pumpUndercurrentTrip || t.pumpUndercurrent || t.isUndercurrentPending) {
       underInd.className = 'float-indicator active-yellow';
-      underState.innerText = t.pumpUndercurrentTrip ? 'DRY RUN (TRIPPED)' : 'DRY RUN DETECTED';
+      underState.innerText = t.pumpUndercurrentTrip ? 'DRY RUN (TRIPPED)' : (t.isUndercurrentPending ? 'WARNING (PULSE)' : 'DRY RUN DETECTED');
       underState.className = 'float-state-pill val-amber';
     } else {
       underInd.className = 'float-indicator active-green';
@@ -352,6 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (t.pumpUndercurrentTrip) {
       currentBox.className = 'current-summary-box fault';
       currentText.innerText = 'Dry run / undercurrent trip active! Suction line loss of prime.';
+    } else if (t.pumpCurrentFaultPending) {
+      currentBox.className = 'current-summary-box fault';
+      currentText.innerText = 'Pre-trip warning active: Alarm relay pulsing for 1 minute before shutdown.';
     } else {
       currentBox.className = 'current-summary-box';
       currentText.innerText = 'Motor current within safe operating bounds.';
@@ -397,12 +645,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (alertCard && alertTitle && alertDesc) {
       if (isAnyOverrideActive) {
         alertCard.className = 'settings-alert-card warning';
-        alertTitle.innerText = `WARNING: ${activeOverrides.length} Manual Override${activeOverrides.length > 1 ? 's' : ''} Active`;
+        alertTitle.innerText = `WARNING: ${activeOverrides.length} Manual Override${activeOverrides.length > 1 ? 's' : ''} Active (PIN Protected)`;
         alertDesc.innerText = `Active manual bypasses: ${activeOverrides.join(' • ')}. Normal autonomous logic is altered.`;
       } else {
         alertCard.className = 'settings-alert-card';
         alertTitle.innerText = 'System Mode: All Subsystems in AUTO';
-        alertDesc.innerText = 'Autonomous float logic and current safety monitoring active. No manual overrides engaged.';
+        alertDesc.innerText = 'Autonomous float logic and current safety monitoring active. PIN required for state overrides.';
       }
     }
   }
@@ -422,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------------------
-  // 4. Command Dispatcher
+  // 5. Command Dispatcher
   // -------------------------------------------------------------------------
   function sendCommand(cmdObj) {
     alarmAudio.init();
@@ -436,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------------------
-  // 5. Button Event Listeners & Tab Navigation
+  // 6. Button Event Listeners & Tab Navigation
   // -------------------------------------------------------------------------
   // Tab Switching
   document.querySelectorAll('.nav-tab').forEach(tabBtn => {
@@ -458,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Silence Alarm Buttons
+  // Silence Alarm Buttons (Unprotected emergency action)
   document.querySelectorAll('.btn-silence-alarm').forEach(b => {
     b.addEventListener('click', () => {
       alarmAudio.stopAlarm();
@@ -466,7 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Reset Pump Timeout / Fault Buttons
+  // Reset Pump Timeout / Fault Buttons (Unprotected recovery)
   const resetFaultAction = () => {
     alarmAudio.stopAlarm();
     sendCommand({ resetPumpTimeout: true, resetPumpFault: true });
@@ -486,12 +734,14 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   document.getElementById('btnEStop').addEventListener('click', eStopAction);
 
-  // Generic Override Toggle Group Binder
+  // Generic Override Toggle Group Binder (PIN / PASSWORD PROTECTED)
   const bindOverrideGroup = (groupId, commandKey) => {
     document.querySelectorAll(`#${groupId} .btn-toggle`).forEach(b => {
       b.addEventListener('click', () => {
         const mode = parseInt(b.getAttribute('data-mode'), 10);
-        sendCommand({ [commandKey]: mode });
+        requirePassword((pwd) => {
+          sendCommand({ [commandKey]: mode, password: pwd });
+        });
       });
     });
   };
@@ -505,9 +755,11 @@ document.addEventListener('DOMContentLoaded', () => {
   bindOverrideGroup('undercurrentOverrideGroup', 'setUndercurrentOverride');
   bindOverrideGroup('freezeOverrideGroup', 'setFreezeOverride');
 
-  // Reset All Overrides to Auto
+  // Reset All Overrides to Auto (PIN / PASSWORD PROTECTED)
   const resetAllAutoAction = () => {
-    sendCommand({ resetAllOverrides: true });
+    requirePassword((pwd) => {
+      sendCommand({ resetAllOverrides: true, password: pwd });
+    });
   };
   const btnResetTop = document.getElementById('btnResetAllAutoTop');
   if (btnResetTop) btnResetTop.addEventListener('click', resetAllAutoAction);
@@ -528,7 +780,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnSetEStop) btnSetEStop.addEventListener('click', eStopAction);
 
   // -------------------------------------------------------------------------
-  // 6. Connection Modal & Mode Switchers
+  // 7. Connection Modal & Mode Switchers
   // -------------------------------------------------------------------------
   const modal = document.getElementById('connModal');
   document.getElementById('btnOpenConnectModal').addEventListener('click', () => {
@@ -577,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 7. Interactive Hardware Test Bench Controls (Simulator)
+  // 8. Interactive Hardware Test Bench Controls (Simulator)
   // -------------------------------------------------------------------------
   // Water Level presets
   document.getElementById('simLevelFull').addEventListener('click', () => {
@@ -626,6 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnOcNorm.addEventListener('click', () => {
       simulator.state.pumpOvercurrent = false;
       simulator.state.pumpOvercurrentTrip = false;
+      simulator.state.pumpCurrentFaultPending = false;
       setSimBtnActive('simOvercurrentGroup', 'simOvercurrentNormal');
     });
     btnOcFault.addEventListener('click', () => {
@@ -641,6 +894,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnUcNorm.addEventListener('click', () => {
       simulator.state.pumpUndercurrent = false;
       simulator.state.pumpUndercurrentTrip = false;
+      simulator.state.pumpCurrentFaultPending = false;
       setSimBtnActive('simUndercurrentGroup', 'simUndercurrentNormal');
     });
     btnUcFault.addEventListener('click', () => {
@@ -655,6 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (target) target.classList.add('active');
   }
 
-  // Initial Simulator state
+  // Initial Simulator state & Lock state
+  updateLockUI();
   onConnectionChanged(true, 'Test Simulator');
 });

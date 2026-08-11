@@ -86,6 +86,13 @@ class HardwareSimulator {
       pumpOvercurrentTrip: false,
       pumpUndercurrentTrip: false,
       
+      // 1-Minute Current Fault Warning & Pulsing Alarm State
+      pumpCurrentFaultPending: false,
+      pumpCurrentFaultRemainingSec: 0,
+      isOvercurrentPending: false,
+      isUndercurrentPending: false,
+      alarmPulsing: false,
+      
       valveOverride: 0, // AUTO
       pumpOverride: 0,  // AUTO
       tankHighOverride: 0,
@@ -127,25 +134,67 @@ class HardwareSimulator {
     let effectiveOvercurrent = (this.state.overcurrentOverride === 1) ? true : ((this.state.overcurrentOverride === 2) ? false : this.state.pumpOvercurrent);
     let effectiveUndercurrent = (this.state.undercurrentOverride === 1) ? true : ((this.state.undercurrentOverride === 2) ? false : this.state.pumpUndercurrent);
 
-    // 0. Current Fault Tripping Logic
-    const isPumpAttempting = (this.state.pump || this.state.pumpTimingState === 1 || this.state.pumpOverride === 1);
-    if (isPumpAttempting) {
-      if (effectiveOvercurrent) {
-        this.state.pumpOvercurrentTrip = true;
-      }
-      if (effectiveUndercurrent) {
-        this.state.pumpUndercurrentTrip = true;
+    // 0. 5-Second Current Stabilization & 1-Minute Fault Warning / Pulsing Delay Logic
+    const isPumpRunning = (this.state.pump || this.state.pumpTimingState === 1 || this.state.pumpOverride === 1);
+    // Allow 5 seconds for pump motor startup inrush current and suction prime to stabilize before evaluating faults
+    const isCurrentStabilized = isPumpRunning && (this.state.pumpRunElapsedSec >= 5);
+    const hasActiveSensorFault = (effectiveOvercurrent || effectiveUndercurrent);
+
+    if (!this.state.pumpOvercurrentTrip && !this.state.pumpUndercurrentTrip) {
+      if (isCurrentStabilized && hasActiveSensorFault) {
+        if (!this.state.pumpCurrentFaultPending) {
+          // Start 60-second pre-trip countdown
+          this.state.pumpCurrentFaultPending = true;
+          this.state.pumpCurrentFaultRemainingSec = 60;
+          this.state.isOvercurrentPending = effectiveOvercurrent;
+          this.state.isUndercurrentPending = effectiveUndercurrent;
+        } else {
+          if (effectiveOvercurrent) this.state.isOvercurrentPending = true;
+          if (effectiveUndercurrent) this.state.isUndercurrentPending = true;
+
+          if (this.state.pumpCurrentFaultRemainingSec > 0) {
+            this.state.pumpCurrentFaultRemainingSec--;
+          }
+
+          if (this.state.pumpCurrentFaultRemainingSec <= 0) {
+            // 60 seconds of persistent overload / undercurrent -> Latch fault & shut down pump
+            if (this.state.isOvercurrentPending) this.state.pumpOvercurrentTrip = true;
+            if (this.state.isUndercurrentPending) this.state.pumpUndercurrentTrip = true;
+            this.state.pumpCurrentFaultPending = false;
+            this.state.isOvercurrentPending = false;
+            this.state.isUndercurrentPending = false;
+            this.state.alarmPulsing = false;
+          }
+        }
+      } else if (this.state.pumpCurrentFaultPending && (!hasActiveSensorFault || !isPumpRunning)) {
+        // Transient fault cleared within 60s window or pump stopped
+        this.state.pumpCurrentFaultPending = false;
+        this.state.pumpCurrentFaultRemainingSec = 0;
+        this.state.isOvercurrentPending = false;
+        this.state.isUndercurrentPending = false;
+        this.state.alarmPulsing = false;
       }
     }
 
-    const hasCurrentFault = this.state.pumpOvercurrentTrip || this.state.pumpUndercurrentTrip;
+    const hasCurrentFault = (this.state.pumpOvercurrentTrip || this.state.pumpUndercurrentTrip);
 
-    // 1. Alarm Logic
-    if (effectiveEmpty || this.state.pumpOvercurrentTrip) {
-      this.state.alarm = !this.state.alarmSilenced;
+    // 1. Alarm & Pulsing Relay Logic
+    if (this.state.pumpCurrentFaultPending) {
+      if (!this.state.alarmSilenced) {
+        this.state.alarm = true;
+        this.state.alarmPulsing = true;
+      } else {
+        this.state.alarm = false;
+        this.state.alarmPulsing = false;
+      }
     } else {
-      this.state.alarm = false;
-      this.state.alarmSilenced = false;
+      this.state.alarmPulsing = false;
+      if (effectiveEmpty || this.state.pumpOvercurrentTrip) {
+        this.state.alarm = !this.state.alarmSilenced;
+      } else {
+        this.state.alarm = false;
+        this.state.alarmSilenced = false;
+      }
     }
 
     // 2. Tank Level Transition Logic
@@ -271,9 +320,24 @@ class HardwareSimulator {
   }
 
   processCommand(cmd) {
+    // Validate password for protected override commands if supplied
+    const hasOverride = (cmd.setValveOverride !== undefined || cmd.setPumpOverride !== undefined ||
+                         cmd.setTankHighOverride !== undefined || cmd.setTankLowOverride !== undefined ||
+                         cmd.setTankEmptyOverride !== undefined || cmd.setOvercurrentOverride !== undefined ||
+                         cmd.setUndercurrentOverride !== undefined || cmd.setFreezeOverride !== undefined ||
+                         cmd.resetAllOverrides);
+    if (hasOverride) {
+      const p = cmd.password || cmd.pin;
+      if (p !== undefined && p !== "5100" && p !== "tweed123") {
+        console.warn("[Simulator] Unauthorized override command rejected (invalid password/PIN).");
+        return;
+      }
+    }
+
     if (cmd.silenceAlarm) {
       this.state.alarmSilenced = true;
       this.state.alarm = false;
+      this.state.alarmPulsing = false;
     }
     if (cmd.resetPumpTimeout || cmd.resetPumpFault) {
       this.state.pumpTimingState = 0;
@@ -282,6 +346,11 @@ class HardwareSimulator {
       this.state.pumpCooldownRemainingSec = 0;
       this.state.pumpOvercurrentTrip = false;
       this.state.pumpUndercurrentTrip = false;
+      this.state.pumpCurrentFaultPending = false;
+      this.state.pumpCurrentFaultRemainingSec = 0;
+      this.state.isOvercurrentPending = false;
+      this.state.isUndercurrentPending = false;
+      this.state.alarmPulsing = false;
       this.state.alarm = false;
       this.state.alarmSilenced = false;
     }

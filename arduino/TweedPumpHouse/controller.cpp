@@ -43,6 +43,13 @@ WaterSystemController::WaterSystemController()
     _telemetry.pumpCooldownStartTime = 0;
     _telemetry.pumpCooldownRemainingMs = 0;
 
+    _telemetry.pumpCurrentFaultPending = false;
+    _telemetry.isOvercurrentPending = false;
+    _telemetry.isUndercurrentPending = false;
+    _telemetry.pumpCurrentFaultStartTime = 0;
+    _telemetry.pumpCurrentFaultRemainingMs = 0;
+    _telemetry.alarmPulsing = false;
+
     _telemetry.temperatureC = 20.0f;
     _telemetry.temperatureF = 68.0f;
     _telemetry.humidity = 50.0f;
@@ -184,33 +191,84 @@ void WaterSystemController::executeStateMachine() {
     unsigned long now = millis();
 
     // -------------------------------------------------------------
-    // 1. PUMP OVERCURRENT & UNDERCURRENT SAFETY TRIPS
+    // 1. PUMP OVERCURRENT & UNDERCURRENT SAFETY TRIPS (WITH 5s STABILIZATION & 1-MIN WARNING PULSE)
     // -------------------------------------------------------------
-    // Check if pump is active or trying to run while a current fault is sensed
-    if (_telemetry.pump || _telemetry.pumpTimingState == PUMP_STATE_RUNNING || _telemetry.pumpOverride == MODE_FORCE_ON) {
-        if (_telemetry.pumpOvercurrent) {
-            _telemetry.pumpOvercurrentTrip = true;
-        }
-        if (_telemetry.pumpUndercurrent) {
-            _telemetry.pumpUndercurrentTrip = true;
+    bool isPumpRunning = (_telemetry.pump || _telemetry.pumpTimingState == PUMP_STATE_RUNNING || _telemetry.pumpOverride == MODE_FORCE_ON);
+    // Allow 5 seconds for motor inrush current and suction prime to stabilize before evaluating overcurrent/undercurrent
+    bool isCurrentStabilized = isPumpRunning && (_telemetry.pumpRunStartTime > 0) && ((now - _telemetry.pumpRunStartTime) >= PUMP_START_STABILIZE_DELAY_MS);
+    bool hasActiveSensorFault = (_telemetry.pumpOvercurrent || _telemetry.pumpUndercurrent);
+
+    // If neither trip is already latched:
+    if (!_telemetry.pumpOvercurrentTrip && !_telemetry.pumpUndercurrentTrip) {
+        if (isCurrentStabilized && hasActiveSensorFault) {
+            if (!_telemetry.pumpCurrentFaultPending) {
+                // Start 1-minute warning countdown
+                _telemetry.pumpCurrentFaultPending = true;
+                _telemetry.pumpCurrentFaultStartTime = now;
+                _telemetry.isOvercurrentPending = _telemetry.pumpOvercurrent;
+                _telemetry.isUndercurrentPending = _telemetry.pumpUndercurrent;
+                _telemetry.pumpCurrentFaultRemainingMs = PUMP_CURRENT_FAULT_DELAY_MS;
+            } else {
+                if (_telemetry.pumpOvercurrent) _telemetry.isOvercurrentPending = true;
+                if (_telemetry.pumpUndercurrent) _telemetry.isUndercurrentPending = true;
+
+                unsigned long elapsed = now - _telemetry.pumpCurrentFaultStartTime;
+                if (elapsed >= PUMP_CURRENT_FAULT_DELAY_MS) {
+                    // Full 1 minute elapsed with continuous fault -> Latch trip & stop pump
+                    if (_telemetry.isOvercurrentPending) {
+                        _telemetry.pumpOvercurrentTrip = true;
+                    }
+                    if (_telemetry.isUndercurrentPending) {
+                        _telemetry.pumpUndercurrentTrip = true;
+                    }
+                    _telemetry.pumpCurrentFaultPending = false;
+                    _telemetry.pumpCurrentFaultRemainingMs = 0;
+                    _telemetry.isOvercurrentPending = false;
+                    _telemetry.isUndercurrentPending = false;
+                    _telemetry.alarmPulsing = false;
+                } else {
+                    _telemetry.pumpCurrentFaultRemainingMs = PUMP_CURRENT_FAULT_DELAY_MS - elapsed;
+                }
+            }
+        } else if (_telemetry.pumpCurrentFaultPending && (!hasActiveSensorFault || !isPumpRunning)) {
+            // Fault cleared within the 1-minute window or pump stopped -> Cancel warning and alarm pulse
+            _telemetry.pumpCurrentFaultPending = false;
+            _telemetry.pumpCurrentFaultStartTime = 0;
+            _telemetry.pumpCurrentFaultRemainingMs = 0;
+            _telemetry.isOvercurrentPending = false;
+            _telemetry.isUndercurrentPending = false;
+            _telemetry.alarmPulsing = false;
         }
     }
 
     bool hasCurrentFault = (_telemetry.pumpOvercurrentTrip || _telemetry.pumpUndercurrentTrip);
 
     // -------------------------------------------------------------
-    // 2. TANK EMPTY & FAULT AUDIBLE ALARM LOGIC
+    // 2. TANK EMPTY & FAULT AUDIBLE ALARM / PULSING LOGIC
     // -------------------------------------------------------------
-    bool alarmCondition = _telemetry.tankEmpty || _telemetry.pumpOvercurrentTrip;
-    if (alarmCondition) {
+    if (_telemetry.pumpCurrentFaultPending) {
+        // Pre-trip warning period: pulse alarm relay (500ms ON / 500ms OFF)
         if (!_telemetry.alarmSilenced) {
-            _telemetry.alarm = true;
+            bool pulseOn = ((now / ALARM_PULSE_INTERVAL_MS) % 2 == 0);
+            _telemetry.alarm = pulseOn;
+            _telemetry.alarmPulsing = true;
         } else {
             _telemetry.alarm = false;
+            _telemetry.alarmPulsing = false;
         }
     } else {
-        _telemetry.alarm = false;
-        _telemetry.alarmSilenced = false;
+        _telemetry.alarmPulsing = false;
+        bool alarmCondition = _telemetry.tankEmpty || _telemetry.pumpOvercurrentTrip;
+        if (alarmCondition) {
+            if (!_telemetry.alarmSilenced) {
+                _telemetry.alarm = true;
+            } else {
+                _telemetry.alarm = false;
+            }
+        } else {
+            _telemetry.alarm = false;
+            _telemetry.alarmSilenced = false;
+        }
     }
 
     // -------------------------------------------------------------
@@ -384,9 +442,10 @@ void WaterSystemController::update() {
 }
 
 void WaterSystemController::silenceAlarm() {
-    if (_telemetry.tankEmpty || _telemetry.pumpOvercurrentTrip) {
+    if (_telemetry.tankEmpty || _telemetry.pumpOvercurrentTrip || _telemetry.pumpCurrentFaultPending) {
         _telemetry.alarmSilenced = true;
         _telemetry.alarm = false;
+        _telemetry.alarmPulsing = false;
         digitalWrite(PIN_RELAY_ALARM, LOW);
     }
 }
@@ -399,6 +458,12 @@ void WaterSystemController::resetPumpTimeout() {
     _telemetry.pumpCooldownRemainingMs = 0;
     _telemetry.pumpOvercurrentTrip = false;
     _telemetry.pumpUndercurrentTrip = false;
+    _telemetry.pumpCurrentFaultPending = false;
+    _telemetry.pumpCurrentFaultStartTime = 0;
+    _telemetry.pumpCurrentFaultRemainingMs = 0;
+    _telemetry.isOvercurrentPending = false;
+    _telemetry.isUndercurrentPending = false;
+    _telemetry.alarmPulsing = false;
     _telemetry.alarmSilenced = false;
 }
 
@@ -456,6 +521,11 @@ void WaterSystemController::emergencyStop() {
     digitalWrite(PIN_RELAY_PUMP, LOW);
 }
 
+bool WaterSystemController::verifyPassword(const String& pass) const {
+    if (pass.length() == 0) return false;
+    return (pass == SYSTEM_ACCESS_PASSWORD || pass == SYSTEM_ACCESS_PASSWORD_ALT);
+}
+
 String WaterSystemController::getTelemetryJson() const {
     JsonDocument doc;
 
@@ -473,9 +543,15 @@ String WaterSystemController::getTelemetryJson() const {
     doc["alarm"] = _telemetry.alarm;
     doc["alarmSilenced"] = _telemetry.alarmSilenced;
 
-    // Faults & Overrides
+    // Faults, Warnings & Overrides
     doc["pumpOvercurrentTrip"] = _telemetry.pumpOvercurrentTrip;
     doc["pumpUndercurrentTrip"] = _telemetry.pumpUndercurrentTrip;
+    doc["pumpCurrentFaultPending"] = _telemetry.pumpCurrentFaultPending;
+    doc["pumpCurrentFaultRemainingSec"] = _telemetry.pumpCurrentFaultRemainingMs / 1000UL;
+    doc["isOvercurrentPending"] = _telemetry.isOvercurrentPending;
+    doc["isUndercurrentPending"] = _telemetry.isUndercurrentPending;
+    doc["alarmPulsing"] = _telemetry.alarmPulsing;
+
     doc["valveOverride"] = (int)_telemetry.valveOverride;
     doc["pumpOverride"] = (int)_telemetry.pumpOverride;
     doc["tankHighOverride"] = (int)_telemetry.tankHighOverride;
@@ -514,6 +590,21 @@ bool WaterSystemController::processCommandJson(const String& jsonString) {
     DeserializationError error = deserializeJson(doc, jsonString);
     if (error) {
         return false;
+    }
+
+    // Require password authentication for changing any sensor, valve, or pump override state
+    bool hasOverrideCmd = doc.containsKey("setValveOverride") || doc.containsKey("setPumpOverride") ||
+                          doc.containsKey("setTankHighOverride") || doc.containsKey("setTankLowOverride") ||
+                          doc.containsKey("setTankEmptyOverride") || doc.containsKey("setOvercurrentOverride") ||
+                          doc.containsKey("setUndercurrentOverride") || doc.containsKey("setFreezeOverride") ||
+                          doc.containsKey("resetAllOverrides");
+    if (hasOverrideCmd) {
+        String pwd = doc["password"] | "";
+        String pin = doc["pin"] | "";
+        if (!verifyPassword(pwd) && !verifyPassword(pin)) {
+            Serial.println("[SECURITY] Unauthorized override command rejected (incorrect PIN/password).");
+            return false;
+        }
     }
 
     if (doc.containsKey("silenceAlarm")) {
