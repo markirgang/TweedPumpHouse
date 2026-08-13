@@ -115,7 +115,12 @@ class HardwareSimulator {
       humidity: 48.0,
       dhtValid: true,
       
-      fillCycleActive: false
+      fillCycleActive: false,
+
+      // Hexapod Robotic Mascot States
+      hexapodMouth: false,
+      hexapodEyes: true,
+      hexapodSpeechSync: true
     };
 
     this.lineValveOpenSec = 0;
@@ -395,6 +400,15 @@ class HardwareSimulator {
       this.state.pump = false;
       this.state.fillCycleActive = false;
       this.lineValveOpenSec = 0;
+    }
+    if (cmd.setHexapodMouth !== undefined) {
+      this.state.hexapodMouth = Boolean(cmd.setHexapodMouth);
+    }
+    if (cmd.setHexapodEyes !== undefined) {
+      this.state.hexapodEyes = Boolean(cmd.setHexapodEyes);
+    }
+    if (cmd.setHexapodSpeechSync !== undefined) {
+      this.state.hexapodSpeechSync = Boolean(cmd.setHexapodSpeechSync);
     }
   }
 }

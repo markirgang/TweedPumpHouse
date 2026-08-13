@@ -4,17 +4,19 @@
 #include <Arduino.h>
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
+#include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 #include "controller.h"
 
-// LovyanGFX configuration class specifically customized for WT32-SC01 (ST7796 + FT6336U)
-class LGFX_WT32_SC01 : public lgfx::LGFX_Device {
-    lgfx::Panel_ST7796 _panel_instance;
-    lgfx::Bus_SPI _bus_instance;
-    lgfx::Light_PWM _light_instance;
-    lgfx::Touch_FT5x06 _touch_instance; // FT6336U uses FT5x06 driver
+// LovyanGFX configuration class specifically customized for Waveshare ESP32-S3-Touch-LCD-7
+// (ST7262 800x480 16-bit Parallel RGB + GT911 Capacitive Touch on I2C GPIO 8/9)
+class LGFX_Waveshare_LCD7 : public lgfx::LGFX_Device {
+    lgfx::Panel_RGB _panel_instance;
+    lgfx::Bus_RGB _bus_instance;
+    lgfx::Touch_GT911 _touch_instance;
 
 public:
-    LGFX_WT32_SC01();
+    LGFX_Waveshare_LCD7();
 };
 
 enum GuiPage {
@@ -42,8 +44,8 @@ public:
     void update(const SystemTelemetry& telemetry, bool wifiConnected, bool bleConnected);
 
 private:
-    LGFX_WT32_SC01 _lcd;
-    LGFX_Sprite _sprite; // Double buffering sprite for flicker-free rendering
+    LGFX_Waveshare_LCD7 _lcd;
+    LGFX_Sprite _sprite; // Double buffering sprite for smooth flicker-free 800x480 rendering
 
     GuiPage _currentPage;
     unsigned long _lastRenderTime;
@@ -58,20 +60,20 @@ private:
     unsigned long _unlockedUntil; // Millis timestamp when unlock expires
     bool _pinError;
 
-    // Touch Button Bounding Boxes (Landscape 480x320)
+    // Touch Button Bounding Boxes (Landscape 800x480)
     struct Rect { int x; int y; int w; int h; };
     
-    // Header Tabs
+    // Header Tabs & Status
     Rect _tabDashboard;
     Rect _tabSettings;
 
-    // Dashboard Buttons
+    // Dashboard Buttons (Bottom Control Bar: Y=406, H=62)
     Rect _btnSilenceAlarm;
     Rect _btnResetPump;
     Rect _btnValveOverride;
     Rect _btnPumpOverride;
 
-    // Settings Page Buttons (Grid of 8 + Actions)
+    // Settings Page Buttons (2-Column x 4-Row Grid + Bottom Actions)
     Rect _btnSetPump;
     Rect _btnSetValve;
     Rect _btnSetHigh;
@@ -83,9 +85,10 @@ private:
     Rect _btnResetAllAuto;
     Rect _btnBackToDash;
 
-    // PIN Pad Keypad Rectangles
-    Rect _keypadBtns[12]; // 1-9, Clear, 0, Cancel/OK
+    // PIN Pad Keypad Rectangles (Modal at X=220, Y=40, W=360, H=400)
+    Rect _keypadBtns[12]; // 1-9, CLR, 0, OK
 
+    void initIOExpander();
     void requestProtectedAction(PinAction act);
     void executeAction(PinAction act);
     void handleTouchInput();

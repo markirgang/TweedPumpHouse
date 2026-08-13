@@ -1640,6 +1640,567 @@ footer.app-footer {
   border-top: 1px solid rgba(255,255,255,0.04);
 }
 
+/* =========================================================================
+   HEXAPOD ROBOT ASSISTANT & TALKING ANIMATIONS
+   ========================================================================= */
+
+/* Header Hexapod Switch Button */
+.btn-header-hexapod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn-header-hexapod:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: var(--cyan-water);
+  box-shadow: 0 0 16px var(--cyan-glow);
+  transform: translateY(-1px);
+}
+
+.btn-header-hexapod.active {
+  border-color: rgba(0, 240, 255, 0.6);
+  background: rgba(2, 132, 199, 0.15);
+}
+
+.btn-header-hexapod.off {
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.hex-icon {
+  font-size: 1rem;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.btn-header-hexapod:hover .hex-icon {
+  transform: scale(1.15) rotate(8deg);
+}
+
+.hex-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.hex-dot.on {
+  background: var(--cyan-water);
+  box-shadow: 0 0 8px var(--cyan-water);
+}
+
+.hex-dot.off {
+  background: var(--text-muted);
+}
+
+/* Floating Hexapod Companion Dock */
+.hexapod-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 28px;
+  z-index: 990;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  transition: opacity 0.35s ease, transform 0.35s ease, visibility 0.35s;
+  pointer-events: auto;
+}
+
+.hexapod-widget.disabled {
+  opacity: 0;
+  transform: translateY(25px) scale(0.92);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Speech Bubble */
+.hexapod-speech-bubble {
+  width: 290px;
+  background: rgba(11, 19, 38, 0.94);
+  backdrop-filter: blur(14px);
+  border: 1.5px solid var(--cyan-water);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px var(--cyan-glow);
+  position: relative;
+  opacity: 0;
+  transform: translateY(12px) scale(0.95);
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-bottom: 6px;
+}
+
+.hexapod-speech-bubble.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Speech Bubble Tail Pointer */
+.hexapod-speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  right: 52px;
+  width: 16px;
+  height: 16px;
+  background: rgba(11, 19, 38, 0.94);
+  border-right: 1.5px solid var(--cyan-water);
+  border-bottom: 1.5px solid var(--cyan-water);
+  transform: rotate(45deg);
+}
+
+.speech-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.speech-bot-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.speech-bot-tag .pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cyan-water);
+  box-shadow: 0 0 8px var(--cyan-water);
+  animation: beaconPulse 1.2s infinite alternate ease-in-out;
+}
+
+.speech-bot-tag .bot-name {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--cyan-water);
+  font-family: var(--font-mono);
+}
+
+/* Talking Wave Equalizer in Speech Header */
+.speech-wave-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 14px;
+}
+
+.wave-bar {
+  width: 3px;
+  height: 3px;
+  background: var(--cyan-water);
+  border-radius: 1px;
+  transition: height 0.15s ease;
+}
+
+.is-talking .wave-bar:nth-child(1) { animation: waveBarPulse 0.4s infinite ease-in-out alternate; }
+.is-talking .wave-bar:nth-child(2) { animation: waveBarPulse 0.5s infinite 0.1s ease-in-out alternate; }
+.is-talking .wave-bar:nth-child(3) { animation: waveBarPulse 0.35s infinite 0.2s ease-in-out alternate; }
+.is-talking .wave-bar:nth-child(4) { animation: waveBarPulse 0.45s infinite 0.15s ease-in-out alternate; }
+.is-talking .wave-bar:nth-child(5) { animation: waveBarPulse 0.38s infinite 0.05s ease-in-out alternate; }
+
+@keyframes waveBarPulse {
+  0% { height: 3px; }
+  100% { height: 14px; background: #38bdf8; }
+}
+
+.btn-close-speech {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+
+.btn-close-speech:hover {
+  color: #fff;
+}
+
+.speech-text {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #f1f5f9;
+  font-family: var(--font-main);
+  font-weight: 500;
+}
+
+/* Hexapod Avatar Container */
+.hexapod-avatar-wrap {
+  position: relative;
+  width: 140px;
+  height: 130px;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hexapod-avatar-wrap:hover {
+  transform: scale(1.06) translateY(-4px);
+}
+
+.hexapod-svg {
+  width: 140px;
+  height: 120px;
+  overflow: visible;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+}
+
+/* Idle Body & Torso Floating Animation */
+.hex-body {
+  transform-origin: 100px 100px;
+  animation: hexBodyBob 3.5s infinite ease-in-out;
+}
+
+@keyframes hexBodyBob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(-0.5deg); }
+}
+
+/* Reactor Core Breathing Glow */
+.reactor-pulse {
+  transform-origin: 100px 100px;
+  animation: reactorBreath 2.2s infinite ease-in-out;
+}
+
+@keyframes reactorBreath {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.18); opacity: 1; filter: drop-shadow(0 0 8px #00f0ff); }
+}
+
+/* Ocular Visor Scanning Eye */
+.visor-eye {
+  animation: eyeScan 4s infinite ease-in-out;
+}
+
+@keyframes eyeScan {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+/* Hexapod Articulating 6 Legs Animations */
+.leg-l1, .leg-r3 {
+  transform-origin: 72px 90px;
+  animation: legWalkTripodA 4s infinite ease-in-out;
+}
+
+.leg-l2, .leg-r2 {
+  transform-origin: 70px 102px;
+  animation: legWalkTripodB 4s infinite 0.5s ease-in-out;
+}
+
+.leg-l3, .leg-r1 {
+  transform-origin: 76px 116px;
+  animation: legWalkTripodA 4s infinite 1s ease-in-out;
+}
+
+@keyframes legWalkTripodA {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-3deg) translateY(-2px); }
+}
+
+@keyframes legWalkTripodB {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(3deg) translateY(-2px); }
+}
+
+/* =========================================================================
+   TALKING ANIMATION STATES
+   ========================================================================= */
+
+/* When Talking: Rapid leg gesturing and dynamic body cadence */
+.is-talking .hex-body {
+  animation: hexTalkingBob 0.35s infinite alternate ease-in-out;
+}
+
+@keyframes hexTalkingBob {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-3px) scale(1.02); }
+}
+
+.is-talking .leg-l1, .is-talking .leg-r1 {
+  animation: legGestureFront 0.4s infinite alternate ease-in-out;
+}
+
+@keyframes legGestureFront {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-5deg) translateY(-4px); }
+/* Ocular Visor Scanning Eye & Eyelid Blinking (GPIO 12) */
+.visor-eye {
+  transition: transform 0.08s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.08s ease, fill 0.2s ease;
+  transform-origin: 100px 73.5px;
+}
+
+.visor-eye.blink-closed,
+.hexapod-widget.eye-blink #visorEye {
+  transform: scaleY(0.08);
+  opacity: 0.2;
+}
+
+/* Mouth Aperture & Speaking Lip-Sync (GPIO 11) */
+.hex-mouth-aperture {
+  transition: all 0.12s ease;
+}
+
+.hexapod-widget.mouth-open .mouth-frame,
+.hex-mouth-aperture.active .mouth-frame {
+  stroke: #00f0ff !important;
+  fill: #0c4a6e !important;
+  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.7));
+}
+
+.hexapod-widget.mouth-open .front-claw {
+  animation: clawPincer 0.18s infinite alternate ease-in-out;
+}
+
+/* Front Claws Pincer Animation */
+.is-talking .front-claw {
+  animation: clawPincer 0.3s infinite alternate ease-in-out;
+}
+
+@keyframes clawPincer {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(4deg); }
+}
+
+/* Mouth Aperture Equalizer Visualizer Bars Animation */
+.mouth-bar {
+  transition: y1 0.05s ease, y2 0.05s ease;
+}
+
+.is-talking .mouth-bar.bar-1 { animation: mouthBar1 0.25s infinite alternate ease-in-out; }
+.is-talking .mouth-bar.bar-2 { animation: mouthBar2 0.3s infinite 0.05s alternate ease-in-out; }
+.is-talking .mouth-bar.bar-3 { animation: mouthBar3 0.2s infinite 0.1s alternate ease-in-out; }
+.is-talking .mouth-bar.bar-4 { animation: mouthBar2 0.28s infinite 0.08s alternate ease-in-out; }
+.is-talking .mouth-bar.bar-5 { animation: mouthBar1 0.22s infinite 0.03s alternate ease-in-out; }
+
+@keyframes mouthBar1 {
+  0% { transform: scaleY(0.4); opacity: 0.5; }
+  100% { transform: scaleY(2.2); stroke: #00f0ff; opacity: 1; }
+}
+
+@keyframes mouthBar2 {
+  0% { transform: scaleY(0.6); opacity: 0.6; }
+  100% { transform: scaleY(2.8); stroke: #38bdf8; opacity: 1; }
+}
+
+@keyframes mouthBar3 {
+  0% { transform: scaleY(0.5); opacity: 0.7; }
+  100% { transform: scaleY(3.2); stroke: #ffffff; opacity: 1; }
+}
+
+/* Interactive Poke Reaction */
+.hexapod-avatar-wrap.poked {
+  animation: hexPokeJump 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes hexPokeJump {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.2) translateY(-14px) rotate(4deg); }
+  60% { transform: scale(0.95) translateY(2px) rotate(-2deg); }
+  100% { transform: scale(1) translateY(0) rotate(0deg); }
+}
+
+/* Mood States */
+.hexapod-widget.mood-alert #reactorCore {
+  fill: #ef4444 !important;
+  filter: drop-shadow(0 0 12px #ef4444);
+  animation: alertPulseCore 0.4s infinite alternate ease-in-out;
+}
+
+.hexapod-widget.mood-alert #visorEye {
+  fill: #ef4444 !important;
+}
+
+.hexapod-widget.mood-alert .hexapod-speech-bubble {
+  border-color: var(--red-danger);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px var(--red-glow);
+}
+
+.hexapod-widget.mood-alert .hexapod-speech-bubble::after {
+  border-color: var(--red-danger);
+}
+
+.hexapod-widget.mood-freeze #reactorCore {
+  fill: #93c5fd !important;
+  filter: drop-shadow(0 0 12px #93c5fd);
+}
+
+.hexapod-widget.mood-pumping #reactorCore {
+  fill: #00f0ff !important;
+  filter: drop-shadow(0 0 16px #00f0ff);
+  animation: reactorBreath 0.8s infinite ease-in-out;
+}
+
+@keyframes alertPulseCore {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.35); opacity: 1; }
+}
+
+/* Status Beacon Badge */
+.hexapod-status-beacon {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 20px;
+  padding: 2px 8px;
+  margin-top: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.beacon-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green-ok);
+  box-shadow: 0 0 6px var(--green-ok);
+}
+
+.beacon-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+}
+
+/* Dock Quick Controls */
+.hexapod-dock-controls {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.hexapod-avatar-wrap:hover .hexapod-dock-controls {
+  opacity: 1;
+}
+
+.btn-hex-dock {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  padding: 3px 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-hex-dock:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: var(--cyan-water);
+  color: #fff;
+}
+
+/* Minimized Dock Mode */
+.hexapod-widget.minimized .hexapod-speech-bubble {
+  display: none !important;
+}
+
+.hexapod-widget.minimized .hexapod-svg {
+  width: 70px;
+  height: 60px;
+}
+
+.hexapod-widget.minimized .hexapod-avatar-wrap {
+  width: 70px;
+  height: 65px;
+}
+
+.hexapod-widget.minimized .hexapod-status-beacon {
+  display: none;
+}
+
+/* =========================================================================
+   SETTINGS CARD TOGGLES (HEXAPOD & ANIMATIONS)
+   ========================================================================= */
+
+.setting-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.setting-switch-row:last-child {
+  border-bottom: none;
+}
+
+.switch-slider-wrap {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+}
+
+.switch-slider-wrap input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 28px;
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #94a3b8;
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.switch-slider-wrap input:checked + .switch-slider {
+  background-color: #0284c7;
+  border-color: var(--cyan-water);
+  box-shadow: 0 0 12px var(--cyan-glow);
+}
+
+.switch-slider-wrap input:checked + .switch-slider:before {
+  transform: translateX(24px);
+  background-color: #ffffff;
+  box-shadow: 0 0 8px var(--cyan-water);
+}
+
 /* RESPONSIVE BREAKPOINTS */
 @media (max-width: 768px) {
   header.app-header {
@@ -1650,6 +2211,8 @@ footer.app-footer {
   .header-status {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .schematic-canvas-container {
     height: 300px;
@@ -1657,4 +2220,13 @@ footer.app-footer {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
+  .hexapod-widget {
+    bottom: 16px;
+    right: 16px;
+  }
+  .hexapod-speech-bubble {
+    width: 240px;
+    font-size: 0.8rem;
+  }
 }
+

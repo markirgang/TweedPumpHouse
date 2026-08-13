@@ -270,6 +270,9 @@ document.addEventListener('DOMContentLoaded', () => {
     latestTelemetry = data;
     updateUI(data, source);
     if (schematic) schematic.updateState(data);
+    if (window.hexapodManager) {
+      window.hexapodManager.onTelemetryUpdate(data);
+    }
 
     // Audio alarm management (supporting 1-minute pulsing warning)
     if (data.alarm && !data.alarmSilenced) {
@@ -644,14 +647,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const alertDesc = document.getElementById('alertDescText');
     if (alertCard && alertTitle && alertDesc) {
       if (isAnyOverrideActive) {
-        alertCard.className = 'settings-alert-card warning';
-        alertTitle.innerText = `WARNING: ${activeOverrides.length} Manual Override${activeOverrides.length > 1 ? 's' : ''} Active (PIN Protected)`;
-        alertDesc.innerText = `Active manual bypasses: ${activeOverrides.join(' • ')}. Normal autonomous logic is altered.`;
-      } else {
         alertCard.className = 'settings-alert-card';
         alertTitle.innerText = 'System Mode: All Subsystems in AUTO';
         alertDesc.innerText = 'Autonomous float logic and current safety monitoring active. PIN required for state overrides.';
       }
+    }
+
+    // 9. Hexapod Hardware Output Status (GPIO 11 & GPIO 12)
+    const badgeMouth = document.getElementById('badgeHexMouthStatus');
+    const badgeEyes = document.getElementById('badgeHexEyesStatus');
+    if (t.hexapodMouth !== undefined && badgeMouth && (!window.hexapodManager || !window.hexapodManager.wsConnected)) {
+      badgeMouth.className = t.hexapodMouth ? 'float-state-pill val-green' : 'float-state-pill val-grey';
+      badgeMouth.innerText = t.hexapodMouth ? 'OPEN (ACTIVE)' : 'CLOSED';
+    }
+    if (t.hexapodEyes !== undefined && badgeEyes) {
+      badgeEyes.className = t.hexapodEyes ? 'float-state-pill val-cyan' : 'float-state-pill val-amber';
+      badgeEyes.innerText = t.hexapodEyes ? 'ILLUMINATED' : 'BLINKING';
     }
   }
 
@@ -681,6 +692,19 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       simulator.processCommand(cmdObj);
     }
+  }
+
+  // Wire Hexapod mascot hardware output changes to remote controller
+  if (window.hexapodManager) {
+    window.hexapodManager.onHardwareOutputChange = (type, state) => {
+      if (type === 'mouth') {
+        sendCommand({ setHexapodMouth: state });
+      } else if (type === 'eyes') {
+        sendCommand({ setHexapodEyes: state });
+      } else if (type === 'speechSync') {
+        sendCommand({ setHexapodSpeechSync: state });
+      }
+    };
   }
 
   // -------------------------------------------------------------------------

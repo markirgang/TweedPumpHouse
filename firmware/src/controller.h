@@ -70,6 +70,11 @@ struct SystemTelemetry {
     unsigned long pumpCurrentFaultStartTime; // millis() when fault warning started
     unsigned long pumpCurrentFaultRemainingMs; // remaining ms before pump shutdown
     bool alarmPulsing;                  // true if alarm relay is actively pulsing (pre-trip warning)
+
+    // Hexapod Robotic Mascot Actuators & Speech Lip-Sync State
+    bool hexapodMouth;                  // true = Mouth Open / Speaking, false = Closed
+    bool hexapodEyes;                   // true = Ocular Eyes Illuminated, false = Closed/Blinking
+    bool hexapodSpeechSync;             // true = Synchronized to AI Python Audio Stream & Voice, false = Manual
 };
 
 class WaterSystemController {
@@ -93,6 +98,11 @@ public:
     void resetAllOverrides();
     void emergencyStop();
 
+    // Hexapod Physical Actuators & Speech Lip-Sync API
+    void setHexapodMouth(bool open);
+    void setHexapodEyes(bool on);
+    void setHexapodSpeechSync(bool enabled);
+
     // Telemetry & Command API
     const SystemTelemetry& getTelemetry() const { return _telemetry; }
     String getTelemetryJson() const;
@@ -113,6 +123,12 @@ private:
     unsigned long _lastDhtReadTime;
     unsigned long _lastTelemetryBroadcast;
     unsigned long _lineValveOpenedTime; // Timestamp when Line Valve was energized (for 5s booster start delay)
+
+    // Hexapod Natural Eye Blinking & Speech Lip-Sync Trackers
+    unsigned long _hexapodLastBlinkTime;
+    bool _hexapodIsBlinking;
+    unsigned long _hexapodNextBlinkInterval;
+    unsigned long _hexapodMouthOffTime;
 
     bool _prevTankEmptyState;
 

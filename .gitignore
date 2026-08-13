@@ -19,3 +19,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .netlify/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+

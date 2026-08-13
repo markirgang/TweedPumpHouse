@@ -1,73 +1,100 @@
 #include "display_gui.h"
+#include <Wire.h>
 
 DisplayGUI displayGui;
 
-LGFX_WT32_SC01::LGFX_WT32_SC01() {
-    // 1. Configure SPI Bus for ST7796
-    {
-        auto cfg = _bus_instance.config();
-        cfg.spi_host = VSPI_HOST;
-        cfg.spi_mode = 0;
-        cfg.freq_write = 40000000;
-        cfg.freq_read = 16000000;
-        cfg.spi_3wire = false;
-        cfg.use_lock = true;
-        cfg.dma_channel = 1;
-        cfg.pin_sclk = 14;
-        cfg.pin_mosi = 13;
-        cfg.pin_miso = 12;
-        cfg.pin_dc = 21;
-        _bus_instance.config(cfg);
-        _panel_instance.setBus(&_bus_instance);
-    }
-
-    // 2. Configure Panel (ST7796 320x480)
+// =========================================================================
+// LovyanGFX Driver Implementation for Waveshare ESP32-S3-Touch-LCD-7
+// =========================================================================
+LGFX_Waveshare_LCD7::LGFX_Waveshare_LCD7() {
+    // 1. Configure Panel (ST7262 800x480 RGB Panel)
     {
         auto cfg = _panel_instance.config();
-        cfg.pin_cs = 15;
-        cfg.pin_rst = 22;
-        cfg.pin_busy = -1;
-        cfg.panel_width = 320;
-        cfg.panel_height = 480;
-        cfg.offset_x = 0;
-        cfg.offset_y = 0;
+        cfg.memory_width  = 800;
+        cfg.memory_height = 480;
+        cfg.panel_width   = 800;
+        cfg.panel_height  = 480;
+        cfg.offset_x      = 0;
+        cfg.offset_y      = 0;
         cfg.offset_rotation = 0;
-        cfg.dummy_read_pixel = 8;
-        cfg.dummy_read_bits = 1;
-        cfg.readable = false;
-        cfg.invert = false;
-        cfg.rgb_order = false;
-        cfg.dlen_16bit = false;
-        cfg.bus_shared = false;
         _panel_instance.config(cfg);
     }
-
-    // 3. Configure Backlight
     {
-        auto cfg = _light_instance.config();
-        cfg.pin_bl = 23;
-        cfg.invert = false;
-        cfg.freq = 44100;
-        cfg.pwm_channel = 7;
-        _light_instance.config(cfg);
-        _panel_instance.setLight(&_light_instance);
+        auto cfg = _panel_instance.config_detail();
+        cfg.use_psram = 1;
+        _panel_instance.config_detail(cfg);
     }
 
-    // 4. Configure FT6336U Capacitive Touch
+    // 2. Configure 16-bit Parallel RGB Bus (ST7262 RGB565)
+    {
+        auto cfg = _bus_instance.config();
+        cfg.panel = &_panel_instance;
+
+        // Blue 5-bit bus lines (B0 - B4)
+        cfg.pin_d0  = GPIO_NUM_14; // B0
+        cfg.pin_d1  = GPIO_NUM_38; // B1
+        cfg.pin_d2  = GPIO_NUM_18; // B2
+        cfg.pin_d3  = GPIO_NUM_17; // B3
+        cfg.pin_d4  = GPIO_NUM_10; // B4
+
+        // Green 6-bit bus lines (G0 - G5)
+        cfg.pin_d5  = GPIO_NUM_39; // G0
+        cfg.pin_d6  = GPIO_NUM_0;  // G1
+        cfg.pin_d7  = GPIO_NUM_45; // G2
+        cfg.pin_d8  = GPIO_NUM_48; // G3
+        cfg.pin_d9  = GPIO_NUM_47; // G4
+        cfg.pin_d10 = GPIO_NUM_21; // G5
+
+        // Red 5-bit bus lines (R0 - R4)
+        cfg.pin_d11 = GPIO_NUM_1;  // R0
+        cfg.pin_d12 = GPIO_NUM_2;  // R1
+        cfg.pin_d13 = GPIO_NUM_42; // R2
+        cfg.pin_d14 = GPIO_NUM_41; // R3
+        cfg.pin_d15 = GPIO_NUM_40; // R4
+
+        // Synchronization and Timing Signals
+        cfg.pin_henable = GPIO_NUM_5;  // DE
+        cfg.pin_vsync   = GPIO_NUM_3;  // VSYNC
+        cfg.pin_hsync   = GPIO_NUM_46; // HSYNC
+        cfg.pin_pclk    = GPIO_NUM_7;  // PCLK
+
+        cfg.freq_write = 14000000;     // 14 MHz Pixel Clock
+
+        // ST7262 Horizontal Timing Porches
+        cfg.hsync_polarity    = 0;
+        cfg.hsync_front_porch = 40;
+        cfg.hsync_pulse_width = 48;
+        cfg.hsync_back_porch  = 40;
+
+        // ST7262 Vertical Timing Porches
+        cfg.vsync_polarity    = 0;
+        cfg.vsync_front_porch = 13;
+        cfg.vsync_pulse_width = 3;
+        cfg.vsync_back_porch  = 32;
+
+        cfg.pclk_active_neg   = 1;
+        cfg.de_idle_high      = 0;
+        cfg.pclk_idle_high    = 0;
+
+        _bus_instance.config(cfg);
+    }
+    _panel_instance.setBus(&_bus_instance);
+
+    // 3. Configure GT911 Capacitive Touch Controller (I2C SDA: GPIO 8, SCL: GPIO 9)
     {
         auto cfg = _touch_instance.config();
-        cfg.x_min = 0;
-        cfg.x_max = 319;
-        cfg.y_min = 0;
-        cfg.y_max = 479;
-        cfg.pin_int = 39;
-        cfg.bus_shared = false;
+        cfg.x_min      = 0;
+        cfg.x_max      = 799;
+        cfg.y_min      = 0;
+        cfg.y_max      = 479;
+        cfg.pin_int    = GPIO_NUM_4;  // TP_IRQ
+        cfg.bus_shared = true;
         cfg.offset_rotation = 0;
-        cfg.i2c_port = 1;
-        cfg.i2c_addr = 0x38;
-        cfg.pin_sda = 18;
-        cfg.pin_scl = 19;
-        cfg.freq = 400000;
+        cfg.i2c_port   = 1;
+        cfg.i2c_addr   = 0x5D;        // Default GT911 I2C Address
+        cfg.pin_sda    = GPIO_NUM_8;
+        cfg.pin_scl    = GPIO_NUM_9;
+        cfg.freq       = 400000;
         _touch_instance.config(cfg);
         _panel_instance.setTouch(&_touch_instance);
     }
@@ -75,6 +102,9 @@ LGFX_WT32_SC01::LGFX_WT32_SC01() {
     setPanel(&_panel_instance);
 }
 
+// =========================================================================
+// DisplayGUI Core Implementation
+// =========================================================================
 DisplayGUI::DisplayGUI() 
     : _sprite(&_lcd), 
       _currentPage(PAGE_DASHBOARD), 
@@ -88,32 +118,35 @@ DisplayGUI::DisplayGUI()
       _unlockedUntil(0),
       _pinError(false)
 {
-    // Header Navigation Tabs
-    _tabDashboard = { 170, 3, 94, 26 };
-    _tabSettings  = { 268, 3, 94, 26 };
+    // 800x480 Header Navigation Tabs
+    _tabDashboard = { 280, 5, 136, 32 };
+    _tabSettings  = { 426, 5, 136, 32 };
 
-    // Dashboard Page Buttons (Landscape 480 x 320)
-    _btnSilenceAlarm  = { 12,  260, 105, 48 };
-    _btnResetPump     = { 128, 260, 110, 48 };
-    _btnValveOverride = { 248, 260, 105, 48 };
-    _btnPumpOverride  = { 364, 260, 105, 48 };
+    // 800x480 Dashboard Bottom Control Bar (Y=406, H=62)
+    _btnSilenceAlarm  = { 16,  406, 180, 62 };
+    _btnResetPump     = { 208, 406, 180, 62 };
+    _btnValveOverride = { 400, 406, 188, 62 };
+    _btnPumpOverride  = { 600, 406, 184, 62 };
 
-    // Settings Page Buttons (2-Column x 4-Row Grid + Bottom Actions)
-    _btnSetPump         = { 10,  56,  226, 46 };
-    _btnSetHigh         = { 10,  106, 226, 46 };
-    _btnSetLow          = { 10,  156, 226, 46 };
-    _btnSetEmpty        = { 10,  206, 226, 46 };
+    // 800x480 Settings Page Buttons (2-Column x 4-Row Grid + Bottom Actions)
+    // Left Column (X=16, W=376, H=68)
+    _btnSetPump         = { 16, 58,  376, 68 };
+    _btnSetHigh         = { 16, 136, 376, 68 };
+    _btnSetLow          = { 16, 214, 376, 68 };
+    _btnSetEmpty        = { 16, 292, 376, 68 };
 
-    _btnSetValve        = { 244, 56,  226, 46 };
-    _btnSetOvercurrent  = { 244, 106, 226, 46 };
-    _btnSetUndercurrent = { 244, 156, 226, 46 };
-    _btnSetFreeze       = { 244, 206, 226, 46 };
+    // Right Column (X=408, W=376, H=68)
+    _btnSetValve        = { 408, 58,  376, 68 };
+    _btnSetOvercurrent  = { 408, 136, 376, 68 };
+    _btnSetUndercurrent = { 408, 214, 376, 68 };
+    _btnSetFreeze       = { 408, 292, 376, 68 };
 
-    _btnResetAllAuto    = { 10,  260, 226, 48 };
-    _btnBackToDash      = { 244, 260, 226, 48 };
+    // Bottom Action Buttons
+    _btnResetAllAuto    = { 16,  390, 376, 68 };
+    _btnBackToDash      = { 408, 390, 376, 68 };
 
-    // PIN Keypad Buttons (Centered: Modal at X=90, Y=26, W=300, H=268)
-    int startX = 110, startY = 104, btnW = 76, btnH = 34, gapX = 14, gapY = 6;
+    // PIN Keypad Buttons (Centered Modal at X=220, Y=40, W=360, H=400)
+    int startX = 244, startY = 160, btnW = 96, btnH = 48, gapX = 12, gapY = 8;
     for (int row = 0; row < 4; row++) {
         for (int col = 0; col < 3; col++) {
             int idx = row * 3 + col;
@@ -122,14 +155,38 @@ DisplayGUI::DisplayGUI()
     }
 }
 
+void DisplayGUI::initIOExpander() {
+    // Waveshare ESP32-S3-Touch-LCD-7 uses CH422G I/O Expander on I2C (GPIO 8/9)
+    // to control Backlight (EXIO2), Touch Reset (EXIO1), and LCD Reset (EXIO3).
+    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000);
+    delay(20);
+
+    // 1. Send system command to enable CH422G open-drain/push-pull outputs
+    Wire.beginTransmission(0x24); // CH422G system address
+    Wire.write(0x01);             // Enable output mode
+    Wire.endTransmission();
+    delay(10);
+
+    // 2. Set EXIO pins: LCD_BL=1 (Backlight ON), TP_RST=1, LCD_RST=1
+    Wire.beginTransmission(0x38); // CH422G Set IO output register
+    Wire.write(0xFF);             // Set all expanded IO pins HIGH
+    Wire.endTransmission();
+    delay(20);
+}
+
 void DisplayGUI::begin() {
+    // 1. Initialize Onboard CH422G I/O expander for backlight & peripheral enable
+    initIOExpander();
+
+    // 2. Initialize LovyanGFX RGB & GT911 Touch
     _lcd.init();
-    _lcd.setRotation(1); // Landscape 480 x 320
+    _lcd.setRotation(0); // Landscape 800 x 480
     _lcd.setBrightness(255);
     _lcd.fillScreen(TFT_BLACK);
 
-    _sprite.setColorDepth(8); // 8-bit depth for smooth fast rendering with PSRAM
-    _sprite.createSprite(480, 320);
+    // 3. Create 800x480 Double Buffering Sprite in PSRAM
+    _sprite.setColorDepth(8); // 8-bit depth in PSRAM for fast 60fps rendering
+    _sprite.createSprite(800, 480);
 }
 
 void DisplayGUI::requestProtectedAction(PinAction act) {
@@ -197,8 +254,8 @@ void DisplayGUI::executeAction(PinAction act) {
 }
 
 void DisplayGUI::handlePinKeypadTouch() {
-    // Check Close / Cancel button (top right of modal: x=350, y=28, w=35, h=30)
-    if (_touchX >= 340 && _touchX <= 385 && _touchY >= 26 && _touchY <= 60) {
+    // Check Close / Cancel button (top right of modal: x=530, y=46, w=40, h=36)
+    if (_touchX >= 520 && _touchX <= 570 && _touchY >= 40 && _touchY <= 85) {
         _pinModalActive = false;
         _enteredPin = "";
         _pinError = false;
@@ -316,7 +373,7 @@ void DisplayGUI::handleTouchInput() {
                 }
                 // 3. Tank High Override (Protected)
                 else if (_touchX >= _btnSetHigh.x && _touchX <= (_btnSetHigh.x + _btnSetHigh.w) &&
-                         _touchY >= _btnSetHigh.y && _touchY <= (_btnSetHigh.y + _btnSetHigh.h)) {
+                    _touchY >= _btnSetHigh.y && _touchY <= (_btnSetHigh.y + _btnSetHigh.h)) {
                     requestProtectedAction(ACT_HIGH_OVERRIDE);
                 }
                 // 4. Tank Low Override (Protected)
@@ -362,217 +419,233 @@ void DisplayGUI::handleTouchInput() {
 }
 
 void DisplayGUI::drawHeader(bool wifiConnected, bool bleConnected) {
-    _sprite.fillRect(0, 0, 480, 32, 0x18C3); // Dark slate header
-    _sprite.setTextColor(TFT_WHITE, 0x18C3);
+    // 800x42 Dark Slate Header Bar
+    _sprite.fillRect(0, 0, 800, 42, 0x18C3);
     _sprite.setTextSize(1);
-    _sprite.drawString("TWEED WATER", 10, 10);
+
+    // Main Logo & Title
+    _sprite.setTextColor(0x03FF, 0x18C3);
+    _sprite.drawString("TWEED WATER", 16, 8);
+    _sprite.setTextColor(TFT_WHITE, 0x18C3);
+    _sprite.drawString("SYSTEM CONTROLLER (7.0\" HMI)", 16, 22);
 
     // Tab 1: DASHBOARD
     uint16_t dashColor = (_currentPage == PAGE_DASHBOARD) ? 0x03FF : 0x2945;
     uint16_t dashTxtColor = (_currentPage == PAGE_DASHBOARD) ? TFT_BLACK : TFT_WHITE;
-    _sprite.fillRoundRect(_tabDashboard.x, _tabDashboard.y, _tabDashboard.w, _tabDashboard.h, 4, dashColor);
+    _sprite.fillRoundRect(_tabDashboard.x, _tabDashboard.y, _tabDashboard.w, _tabDashboard.h, 6, dashColor);
     _sprite.setTextColor(dashTxtColor, dashColor);
-    _sprite.drawString("DASHBOARD", _tabDashboard.x + 13, _tabDashboard.y + 7);
+    _sprite.drawString("DASHBOARD", _tabDashboard.x + 28, _tabDashboard.y + 9);
 
     // Tab 2: SETTINGS
     uint16_t setBgColor = (_currentPage == PAGE_SETTINGS) ? 0x03FF : 0x2945;
     uint16_t setTxtColor = (_currentPage == PAGE_SETTINGS) ? TFT_BLACK : TFT_WHITE;
-    _sprite.fillRoundRect(_tabSettings.x, _tabSettings.y, _tabSettings.w, _tabSettings.h, 4, setBgColor);
+    _sprite.fillRoundRect(_tabSettings.x, _tabSettings.y, _tabSettings.w, _tabSettings.h, 6, setBgColor);
     _sprite.setTextColor(setTxtColor, setBgColor);
-    _sprite.drawString("SETTINGS", _tabSettings.x + 17, _tabSettings.y + 7);
+    _sprite.drawString("SETTINGS", _tabSettings.x + 36, _tabSettings.y + 9);
 
     // Security Status Indicator
     bool isUnlocked = (millis() < _unlockedUntil);
     uint16_t lockBg = isUnlocked ? 0x03E0 : 0x39E7;
-    _sprite.fillRoundRect(368, 4, 38, 24, 4, lockBg);
+    _sprite.fillRoundRect(576, 6, 68, 30, 5, lockBg);
     _sprite.setTextColor(TFT_WHITE, lockBg);
-    _sprite.drawString(isUnlocked ? "UNLK" : "LOCK", 372, 9);
+    _sprite.drawString(isUnlocked ? "UNLOCKED" : "LOCKED", 582, 14);
 
-    // Network Badges
-    _sprite.setTextColor(wifiConnected ? TFT_GREEN : 0x7BEF, 0x18C3);
-    _sprite.drawString(wifiConnected ? "WIFI" : "NO-WF", 412, 5);
-    _sprite.setTextColor(bleConnected ? TFT_CYAN : 0x7BEF, 0x18C3);
-    _sprite.drawString(bleConnected ? "BLE-ON" : "BLE-RDY", 412, 17);
+    // Network Badges (WiFi & BLE)
+    uint16_t wifiBg = wifiConnected ? 0x0400 : 0x2124;
+    _sprite.fillRoundRect(652, 6, 66, 30, 5, wifiBg);
+    _sprite.setTextColor(wifiConnected ? TFT_GREEN : 0x7BEF, wifiBg);
+    _sprite.drawString(wifiConnected ? "WIFI ON" : "NO-WIFI", 658, 14);
+
+    uint16_t bleBg = bleConnected ? 0x01B0 : 0x2124;
+    _sprite.fillRoundRect(724, 6, 62, 30, 5, bleBg);
+    _sprite.setTextColor(bleConnected ? TFT_CYAN : 0x7BEF, bleBg);
+    _sprite.drawString(bleConnected ? "BLE ACT" : "BLE RDY", 730, 14);
 }
 
 void DisplayGUI::drawTankGraphic(const SystemTelemetry& telemetry) {
-    // Tank Outline (Left side: x=12, y=40, w=150, h=210)
-    int tx = 12, ty = 40, tw = 150, th = 210;
-    _sprite.fillRoundRect(tx, ty, tw, th, 8, 0x2124);
-    _sprite.drawRoundRect(tx, ty, tw, th, 8, 0x632C);
+    // Holding Tank Card (Left Column: x=16, y=52, w=240, h=340)
+    int tx = 16, ty = 52, tw = 240, th = 340;
+    _sprite.fillRoundRect(tx, ty, tw, th, 10, 0x2124);
+    _sprite.drawRoundRect(tx, ty, tw, th, 10, 0x632C);
 
     _sprite.setTextColor(TFT_WHITE, 0x2124);
-    _sprite.drawString("TWEED HOLDING TANK", tx + 12, ty + 8);
+    _sprite.drawString("TWEED HOLDING TANK", tx + 24, ty + 12);
 
-    // Water level animation
-    int waterHeight = 20;
+    // Tank Graphic Outer Outline (x=32, y=86, w=208, h=240)
+    int gx = tx + 16, gy = ty + 36, gw = tw - 32, gh = th - 52;
+    _sprite.fillRoundRect(gx, gy, gw, gh, 8, 0x10A2);
+    _sprite.drawRoundRect(gx, gy, gw, gh, 8, 0x4228);
+
+    // Water level animation calculation
+    int waterHeight = 30;
     if (!telemetry.tankHigh) {
-        waterHeight = 160; // FULL
+        waterHeight = gh - 20; // 100% FULL
     } else if (!telemetry.tankLow) {
-        waterHeight = 100; // MEDIUM
+        waterHeight = (gh * 60) / 100; // 60% MEDIUM / ADEQUATE
     } else if (!telemetry.tankEmpty) {
-        waterHeight = 45;  // LOW
+        waterHeight = (gh * 25) / 100;  // 25% LOW / FILL DEMAND
     } else {
-        waterHeight = 10;  // EMPTY
+        waterHeight = 16;  // CRITICAL EMPTY (<10%)
     }
 
-    int waterY = ty + th - 10 - waterHeight;
-    _sprite.fillRect(tx + 6, waterY, tw - 12, waterHeight, 0x03FF); // Bright Cyan Water
+    int waterY = gy + gh - waterHeight;
+    _sprite.fillRoundRect(gx + 4, waterY, gw - 8, waterHeight, 4, 0x03FF); // Bright Cyan Water Fill
+    _sprite.drawFastHLine(gx + 4, waterY, gw - 8, TFT_WHITE); // Water surface line
 
-    // Float Switch Indicators
-    // 1. Tank High Switch (Top: y = ty + 35)
+    // Float Switch Indicators with Crisp Labels
+    // 1. Tank High Switch (Top: y = gy + 35)
     bool highFull = !telemetry.tankHigh;
-    _sprite.fillCircle(tx + 22, ty + 42, 7, highFull ? TFT_GREEN : 0x7BEF);
-    _sprite.setTextColor(highFull ? TFT_GREEN : TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString(highFull ? "HIGH (FULL)" : "HIGH (OFF)", tx + 36, ty + 38);
+    _sprite.fillCircle(gx + 20, gy + 40, 8, highFull ? TFT_GREEN : 0x7BEF);
+    _sprite.setTextColor(highFull ? TFT_GREEN : TFT_LIGHTGRAY, 0x10A2);
+    _sprite.drawString(highFull ? "HIGH (100% FULL)" : "HIGH (BELOW FULL)", gx + 34, gy + 34);
 
-    // 2. Tank Low Switch (Middle: y = ty + 105)
+    // 2. Tank Low Switch (Middle: y = gy + 120)
     bool lowActive = telemetry.tankLow;
-    _sprite.fillCircle(tx + 22, ty + 110, 7, lowActive ? TFT_YELLOW : TFT_GREEN);
-    _sprite.setTextColor(lowActive ? TFT_YELLOW : TFT_GREEN, 0x2124);
-    _sprite.drawString(lowActive ? "LOW (DEMAND)" : "LOW (OK)", tx + 36, ty + 106);
+    _sprite.fillCircle(gx + 20, gy + 125, 8, lowActive ? TFT_YELLOW : TFT_GREEN);
+    _sprite.setTextColor(lowActive ? TFT_YELLOW : TFT_GREEN, 0x10A2);
+    _sprite.drawString(lowActive ? "LOW (DEMAND ON)" : "LOW (ADEQUATE)", gx + 34, gy + 119);
 
-    // 3. Tank Empty Switch (Bottom: y = ty + 175)
+    // 3. Tank Empty Switch (Bottom: y = gy + 210)
     bool emptyActive = telemetry.tankEmpty;
-    _sprite.fillCircle(tx + 22, ty + 180, 7, emptyActive ? TFT_RED : TFT_GREEN);
-    _sprite.setTextColor(emptyActive ? TFT_RED : TFT_GREEN, 0x2124);
-    _sprite.drawString(emptyActive ? "EMPTY (ALARM!)" : "EMPTY (OK)", tx + 36, ty + 176);
+    _sprite.fillCircle(gx + 20, gy + 215, 8, emptyActive ? TFT_RED : TFT_GREEN);
+    _sprite.setTextColor(emptyActive ? TFT_RED : TFT_GREEN, 0x10A2);
+    _sprite.drawString(emptyActive ? "EMPTY (CRITICAL!)" : "EMPTY (NORMAL)", gx + 34, gy + 209);
 }
 
 void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
-    // Actuators & Status Card (Right side: x=172, y=40, w=296, h=210)
-    int cx = 172, cy = 40, cw = 296, ch = 210;
-    _sprite.fillRoundRect(cx, cy, cw, ch, 8, 0x2124);
-    _sprite.drawRoundRect(cx, cy, cw, ch, 8, 0x632C);
+    // Actuators & Status Card (Right Column: x=270, y=52, w=514, h=340)
+    int cx = 270, cy = 52, cw = 514, ch = 340;
+    _sprite.fillRoundRect(cx, cy, cw, ch, 10, 0x2124);
+    _sprite.drawRoundRect(cx, cy, cw, ch, 10, 0x632C);
 
-    // 1. Line Valve Status (cy + 8)
+    // 1. Line Valve Status (cy + 14)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("LINE VALVE:", cx + 10, cy + 8);
+    _sprite.drawString("LINE VALVE:", cx + 18, cy + 14);
     _sprite.setTextColor(telemetry.lineValve ? TFT_GREEN : 0x7BEF, 0x2124);
-    _sprite.drawString(telemetry.lineValve ? "OPEN (ENERGIZED)" : "CLOSED", cx + 115, cy + 8);
+    _sprite.drawString(telemetry.lineValve ? "OPEN (ENERGIZED / FILLING)" : "CLOSED (PIPE DRAINED)", cx + 180, cy + 14);
 
-    // 2. Water Pump Status (cy + 28)
+    // 2. Water Pump Status (cy + 42)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("WATER PUMP:", cx + 10, cy + 28);
+    _sprite.drawString("WATER PUMP:", cx + 18, cy + 42);
     if (telemetry.pumpOvercurrentTrip) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("OVERLOAD TRIP!", cx + 115, cy + 28);
+        _sprite.drawString("OVERLOAD TRIP (LOCKED/JAMMED)", cx + 180, cy + 42);
     } else if (telemetry.pumpUndercurrentTrip) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("DRY RUN TRIP!", cx + 115, cy + 28);
+        _sprite.drawString("DRY RUN TRIP (LOSS OF PRIME)", cx + 180, cy + 42);
     } else if (telemetry.pumpCurrentFaultPending) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("FAULT WARNING (PULSE)", cx + 115, cy + 28);
+        _sprite.drawString("FAULT WARNING (PULSING ALARM)", cx + 180, cy + 42);
     } else if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
         _sprite.setTextColor(TFT_CYAN, 0x2124);
-        _sprite.drawString("RUNNING (ASSIST)", cx + 115, cy + 28);
+        _sprite.drawString("RUNNING (BOOSTER ACTIVE)", cx + 180, cy + 42);
     } else if (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("TIMED OUT (COOLDOWN)", cx + 115, cy + 28);
+        _sprite.drawString("TIMED OUT (2-HR COOLDOWN)", cx + 180, cy + 42);
     } else if (telemetry.isFillCycleActive && telemetry.tankLow && telemetry.lineValve) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("PRIMING (5s DELAY)", cx + 115, cy + 28);
+        _sprite.drawString("PRIMING (5s LINE CHARGE DELAY)", cx + 180, cy + 42);
     } else {
         _sprite.setTextColor(0x7BEF, 0x2124);
-        _sprite.drawString("OFF / STANDBY", cx + 115, cy + 28);
+        _sprite.drawString("OFF / STANDBY READY", cx + 180, cy + 42);
     }
 
-    // 3. Pump On-Time / Timers (cy + 48)
+    // 3. Pump On-Time / Duty Cycle Timers (cy + 70)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("PUMP TIMER:", cx + 10, cy + 48);
+    _sprite.drawString("PUMP TIMER:", cx + 18, cy + 70);
 
-    char timerStr[54];
+    char timerStr[64];
     if (telemetry.pumpCurrentFaultPending) {
         unsigned long remSec = telemetry.pumpCurrentFaultRemainingMs / 1000UL;
-        snprintf(timerStr, sizeof(timerStr), "PULSE ALARM (%02lus to trip)", remSec);
+        snprintf(timerStr, sizeof(timerStr), "PRE-TRIP PULSE (%02lus until shutdown)", remSec);
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
     } else if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
         unsigned long elapsedSec = telemetry.pumpRunElapsedMs / 1000UL;
-        snprintf(timerStr, sizeof(timerStr), "ON: %02lu:%02lu / 25:00", elapsedSec / 60, elapsedSec % 60);
+        snprintf(timerStr, sizeof(timerStr), "ON: %02lu:%02lu / 25:00 MAX RUN", elapsedSec / 60, elapsedSec % 60);
         _sprite.setTextColor(TFT_CYAN, 0x2124);
     } else if (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN) {
         unsigned long remSec = telemetry.pumpCooldownRemainingMs / 1000UL;
         unsigned long ranSec = telemetry.pumpLastRunDurationMs / 1000UL;
-        snprintf(timerStr, sizeof(timerStr), "RAN %02lum | CD %02luh%02lum", ranSec / 60, remSec / 3600, (remSec % 3600) / 60);
+        snprintf(timerStr, sizeof(timerStr), "RAN %02lum | REMAINING CD %02luh %02lum", ranSec / 60, remSec / 3600, (remSec % 3600) / 60);
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
     } else if (telemetry.isFillCycleActive && telemetry.tankLow && telemetry.lineValve && !telemetry.pump) {
-        snprintf(timerStr, sizeof(timerStr), "PRIMING SUCTION PIPE");
+        snprintf(timerStr, sizeof(timerStr), "PRIMING SUCTION PIPE (5s DELAY)");
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
     } else if (telemetry.pumpLastRunDurationMs > 0) {
         unsigned long lastSec = telemetry.pumpLastRunDurationMs / 1000UL;
-        snprintf(timerStr, sizeof(timerStr), "IDLE (Last: %02lum %02lus)", lastSec / 60, lastSec % 60);
+        snprintf(timerStr, sizeof(timerStr), "STANDBY (Last Cycle: %02lum %02lus)", lastSec / 60, lastSec % 60);
         _sprite.setTextColor(TFT_GREEN, 0x2124);
     } else {
         snprintf(timerStr, sizeof(timerStr), "STANDBY (READY)");
         _sprite.setTextColor(TFT_GREEN, 0x2124);
     }
-    _sprite.drawString(timerStr, cx + 115, cy + 48);
+    _sprite.drawString(timerStr, cx + 180, cy + 70);
 
-    // 4. Overcurrent Sensor Status (cy + 68)
+    // 4. Overcurrent Motor Protection (cy + 98)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("OVERCURRENT:", cx + 10, cy + 68);
+    _sprite.drawString("OVERCURRENT:", cx + 18, cy + 98);
     if (telemetry.pumpOvercurrentTrip) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("FAULT (TRIPPED)", cx + 115, cy + 68);
+        _sprite.drawString("FAULT TRIPPED (OVERLOAD)", cx + 180, cy + 98);
     } else if (telemetry.isOvercurrentPending) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("WARNING (1-MIN PULSE)", cx + 115, cy + 68);
+        _sprite.drawString("WARNING ACTIVE (60s PULSE)", cx + 180, cy + 98);
     } else if (telemetry.pumpOvercurrent) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("ACTIVE (> LIMIT)", cx + 115, cy + 68);
+        _sprite.drawString("ACTIVE (> CURRENT LIMIT)", cx + 180, cy + 98);
     } else {
         _sprite.setTextColor(TFT_GREEN, 0x2124);
-        _sprite.drawString("NORMAL (< LIMIT)", cx + 115, cy + 68);
+        _sprite.drawString("NORMAL (< CURRENT LIMIT)", cx + 180, cy + 98);
     }
 
-    // 5. Undercurrent Sensor Status (cy + 88)
+    // 5. Undercurrent / Dry Run Protection (cy + 126)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("UNDERCURRENT:", cx + 10, cy + 88);
+    _sprite.drawString("UNDERCURRENT:", cx + 18, cy + 126);
     if (telemetry.pumpUndercurrentTrip) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("DRY RUN (TRIPPED)", cx + 115, cy + 88);
+        _sprite.drawString("DRY RUN TRIPPED (LOSS OF PRIME)", cx + 180, cy + 126);
     } else if (telemetry.isUndercurrentPending) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("WARNING (1-MIN PULSE)", cx + 115, cy + 88);
+        _sprite.drawString("WARNING ACTIVE (60s PULSE)", cx + 180, cy + 126);
     } else if (telemetry.pumpUndercurrent) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("DRY RUN DETECTED", cx + 115, cy + 88);
+        _sprite.drawString("DRY RUN DETECTED", cx + 180, cy + 126);
     } else {
         _sprite.setTextColor(TFT_GREEN, 0x2124);
-        _sprite.drawString("NORMAL (PRIME OK)", cx + 115, cy + 88);
+        _sprite.drawString("NORMAL (POSITIVE PRIME OK)", cx + 180, cy + 126);
     }
 
-    // 6. Freeze Sensor Switch (<40°F) (cy + 108)
+    // 6. Freeze Sensor Switch (<40°F) (cy + 154)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("FREEZE SENSOR:", cx + 10, cy + 108);
+    _sprite.drawString("FREEZE SENSOR:", cx + 18, cy + 154);
     if (telemetry.freezeSensor) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("< 40F DANGER (CLOSED)", cx + 115, cy + 108);
+        _sprite.drawString("< 40°F FREEZE HAZARD (PIPE DRAIN ACTIVE)", cx + 180, cy + 154);
     } else {
         _sprite.setTextColor(TFT_GREEN, 0x2124);
-        _sprite.drawString(">= 40F NORMAL", cx + 115, cy + 108);
+        _sprite.drawString(">= 40°F WARM (NORMAL TOP-OFF)", cx + 180, cy + 154);
     }
 
-    // 7. DHT11 Ambient Sensors (cy + 128)
+    // 7. DHT11 Room Climate & Siren Status (cy + 182)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("PUMP ROOM:", cx + 10, cy + 128);
-    char dhtStr[32];
+    _sprite.drawString("PUMP ROOM CLIMATE:", cx + 18, cy + 182);
+    char dhtStr[48];
     if (telemetry.dhtValid) {
-        snprintf(dhtStr, sizeof(dhtStr), "%.1f F  |  %.0f%% RH", telemetry.temperatureF, telemetry.humidity);
+        snprintf(dhtStr, sizeof(dhtStr), "%.1f°F (%.1f°C)  |  %.0f%% RH", telemetry.temperatureF, telemetry.temperatureC, telemetry.humidity);
     } else {
-        snprintf(dhtStr, sizeof(dhtStr), "SENSOR INIT...");
+        snprintf(dhtStr, sizeof(dhtStr), "INITIALIZING SENSOR...");
     }
     _sprite.setTextColor(TFT_WHITE, 0x2124);
-    _sprite.drawString(dhtStr, cx + 115, cy + 128);
+    _sprite.drawString(dhtStr, cx + 180, cy + 182);
 
-    // 8. Alarm / Trip Status Banner (cy + 152, height 48)
+    // 8. Alarm / Safety Status Banner (cy + 224, height 96)
     uint16_t bannerBg = 0x0BC4;
     if (telemetry.pumpOvercurrentTrip) {
         bannerBg = TFT_RED;
     } else if (telemetry.pumpUndercurrentTrip) {
         bannerBg = 0xFD20;
     } else if (telemetry.pumpCurrentFaultPending) {
-        bannerBg = 0xFD20; // Amber warning
+        bannerBg = 0xFD20;
     } else if (telemetry.alarm) {
         bannerBg = TFT_RED;
     } else if (telemetry.alarmSilenced) {
@@ -581,181 +654,182 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         bannerBg = 0x8400;
     }
 
-    _sprite.fillRoundRect(cx + 8, cy + 152, cw - 16, 48, 6, bannerBg);
+    _sprite.fillRoundRect(cx + 14, cy + 220, cw - 28, 98, 8, bannerBg);
     _sprite.setTextColor(TFT_WHITE, bannerBg);
     if (telemetry.pumpOvercurrentTrip) {
-        _sprite.drawString("! CRITICAL: MOTOR OVERLOAD TRIP !", cx + 16, cy + 162);
-        _sprite.drawString("Pump disabled. Press RESET to clear.", cx + 16, cy + 178);
+        _sprite.drawString("! CRITICAL: MOTOR OVERCURRENT / JAM TRIP !", cx + 26, cy + 236);
+        _sprite.drawString("Water pump is locked off for motor protection. Press RESET to clear.", cx + 26, cy + 262);
     } else if (telemetry.pumpUndercurrentTrip) {
-        _sprite.drawString("! WARNING: DRY RUN / SUCTION TRIP !", cx + 16, cy + 162);
-        _sprite.drawString("Pump stopped. Press RESET to clear.", cx + 16, cy + 178);
+        _sprite.drawString("! WARNING: DRY RUN / SUCTION LOSS TRIP !", cx + 26, cy + 236);
+        _sprite.drawString("Booster pump stopped to protect seals. Verify water supply and press RESET.", cx + 26, cy + 262);
     } else if (telemetry.pumpCurrentFaultPending) {
         _sprite.setTextColor(TFT_BLACK, bannerBg);
         if (telemetry.isOvercurrentPending) {
-            _sprite.drawString("! OVERCURRENT WARNING: PULSING ALARM !", cx + 12, cy + 160);
+            _sprite.drawString("! OVERCURRENT WARNING: PULSING ALARM ACTIVE !", cx + 22, cy + 234);
         } else {
-            _sprite.drawString("! UNDERCURRENT WARNING: PULSING ALARM !", cx + 12, cy + 160);
+            _sprite.drawString("! UNDERCURRENT WARNING: PULSING ALARM ACTIVE !", cx + 22, cy + 234);
         }
-        char warnStr[42];
-        snprintf(warnStr, sizeof(warnStr), "Pump stopping in %02lu seconds...", telemetry.pumpCurrentFaultRemainingMs / 1000UL);
-        _sprite.drawString(warnStr, cx + 12, cy + 178);
+        char warnStr[64];
+        snprintf(warnStr, sizeof(warnStr), "Fault persisting: Pump shutdown and alarm trip in %02lu seconds...", telemetry.pumpCurrentFaultRemainingMs / 1000UL);
+        _sprite.drawString(warnStr, cx + 22, cy + 262);
     } else if (telemetry.alarm) {
-        _sprite.drawString("! CRITICAL: TANK EMPTY ALARM SOUNDING !", cx + 16, cy + 168);
+        _sprite.drawString("! CRITICAL: TANK EMPTY SIREN SOUNDING !", cx + 26, cy + 246);
+        _sprite.drawString("Tweed holding tank is empty. Tap SILENCE ALARM to mute buzzer.", cx + 26, cy + 270);
     } else if (telemetry.alarmSilenced) {
-        _sprite.drawString("TANK EMPTY (ALARM MUTED BY USER)", cx + 22, cy + 168);
+        _sprite.drawString("TANK EMPTY - AUDIBLE ALARM MUTED BY USER", cx + 32, cy + 256);
     } else if (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN) {
-        _sprite.drawString("PUMP TIMED OUT: 2HR COOLDOWN ACTIVE", cx + 16, cy + 168);
+        _sprite.drawString("PUMP DUTY CYCLE TIMEOUT: 2-HOUR COOLDOWN IN EFFECT", cx + 26, cy + 246);
+        _sprite.drawString("Tap RESET PUMP / TIMEOUT below to override cooldown immediately.", cx + 26, cy + 270);
     } else {
-        _sprite.drawString("SYSTEM NORMAL - HOLDING TANK SECURE", cx + 18, cy + 168);
+        _sprite.drawString("SYSTEM NORMAL - TWEED WATER SUPPLY SECURE", cx + 32, cy + 256);
     }
 }
 
 void DisplayGUI::drawControlButtons(const SystemTelemetry& telemetry) {
-    // 1. Silence Alarm Button
+    // 1. Silence Alarm Button (X=16, W=180, H=62)
     uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip || telemetry.pumpCurrentFaultPending) ? TFT_RED : 0x39E7;
-    _sprite.fillRoundRect(_btnSilenceAlarm.x, _btnSilenceAlarm.y, _btnSilenceAlarm.w, _btnSilenceAlarm.h, 6, silenceColor);
+    _sprite.fillRoundRect(_btnSilenceAlarm.x, _btnSilenceAlarm.y, _btnSilenceAlarm.w, _btnSilenceAlarm.h, 8, silenceColor);
     _sprite.setTextColor(TFT_WHITE, silenceColor);
-    _sprite.drawString("SILENCE", _btnSilenceAlarm.x + 24, _btnSilenceAlarm.y + 10);
-    _sprite.drawString("ALARM", _btnSilenceAlarm.x + 28, _btnSilenceAlarm.y + 26);
+    _sprite.drawString("SILENCE ALARM", _btnSilenceAlarm.x + 36, _btnSilenceAlarm.y + 14);
+    _sprite.drawString(telemetry.alarmSilenced ? "(MUTED)" : "(MUTE SIREN)", _btnSilenceAlarm.x + 44, _btnSilenceAlarm.y + 36);
 
-    // 2. Reset Pump & Fault Button
+    // 2. Reset Pump & Fault Button (X=208, W=180, H=62)
     bool hasFaultOrTimeout = (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN || telemetry.pumpOvercurrentTrip || telemetry.pumpUndercurrentTrip || telemetry.pumpCurrentFaultPending);
     uint16_t resetColor = hasFaultOrTimeout ? 0xFD20 : 0x2144;
-    _sprite.fillRoundRect(_btnResetPump.x, _btnResetPump.y, _btnResetPump.w, _btnResetPump.h, 6, resetColor);
+    _sprite.fillRoundRect(_btnResetPump.x, _btnResetPump.y, _btnResetPump.w, _btnResetPump.h, 8, resetColor);
     _sprite.setTextColor(TFT_WHITE, resetColor);
-    _sprite.drawString("RESET PUMP", _btnResetPump.x + 18, _btnResetPump.y + 10);
-    _sprite.drawString(hasFaultOrTimeout ? "FAULT/RESET" : "TIMEOUT", _btnResetPump.x + 16, _btnResetPump.y + 26);
+    _sprite.drawString("RESET PUMP", _btnResetPump.x + 46, _btnResetPump.y + 14);
+    _sprite.drawString(hasFaultOrTimeout ? "FAULT / TIMEOUT" : "STANDBY", _btnResetPump.x + 34, _btnResetPump.y + 36);
 
-    // 3. Valve Override Cycle Button (Protected)
+    // 3. Valve Override Cycle Button (X=400, W=188, H=62)
     uint16_t valveColor = (telemetry.valveOverride == MODE_AUTO) ? 0x1B2E : 0x632C;
-    _sprite.fillRoundRect(_btnValveOverride.x, _btnValveOverride.y, _btnValveOverride.w, _btnValveOverride.h, 6, valveColor);
+    _sprite.fillRoundRect(_btnValveOverride.x, _btnValveOverride.y, _btnValveOverride.w, _btnValveOverride.h, 8, valveColor);
     _sprite.setTextColor(TFT_WHITE, valveColor);
-    _sprite.drawString("VALVE MODE", _btnValveOverride.x + 14, _btnValveOverride.y + 10);
-    const char* vModeStr = (telemetry.valveOverride == MODE_AUTO) ? "AUTO" : ((telemetry.valveOverride == MODE_FORCE_ON) ? "FORCE OPEN" : "FORCE CLS");
-    _sprite.drawString(vModeStr, _btnValveOverride.x + 18, _btnValveOverride.y + 26);
+    _sprite.drawString("LINE VALVE MODE", _btnValveOverride.x + 34, _btnValveOverride.y + 14);
+    const char* vModeStr = (telemetry.valveOverride == MODE_AUTO) ? "AUTO CONTROL" : ((telemetry.valveOverride == MODE_FORCE_ON) ? "FORCE OPEN" : "FORCE CLOSED");
+    _sprite.drawString(vModeStr, _btnValveOverride.x + 42, _btnValveOverride.y + 36);
 
-    // 4. Pump Override Cycle Button (Protected)
+    // 4. Pump Override Cycle Button (X=600, W=184, H=62)
     uint16_t pumpColor = (telemetry.pumpOverride == MODE_AUTO) ? 0x1B2E : 0x632C;
-    _sprite.fillRoundRect(_btnPumpOverride.x, _btnPumpOverride.y, _btnPumpOverride.w, _btnPumpOverride.h, 6, pumpColor);
+    _sprite.fillRoundRect(_btnPumpOverride.x, _btnPumpOverride.y, _btnPumpOverride.w, _btnPumpOverride.h, 8, pumpColor);
     _sprite.setTextColor(TFT_WHITE, pumpColor);
-    _sprite.drawString("PUMP MODE", _btnPumpOverride.x + 16, _btnPumpOverride.y + 10);
-    const char* pModeStr = (telemetry.pumpOverride == MODE_AUTO) ? "AUTO" : ((telemetry.pumpOverride == MODE_FORCE_ON) ? "FORCE ON" : "FORCE OFF");
-    _sprite.drawString(pModeStr, _btnPumpOverride.x + 18, _btnPumpOverride.y + 26);
+    _sprite.drawString("BOOSTER PUMP MODE", _btnPumpOverride.x + 24, _btnPumpOverride.y + 14);
+    const char* pModeStr = (telemetry.pumpOverride == MODE_AUTO) ? "AUTO CONTROL" : ((telemetry.pumpOverride == MODE_FORCE_ON) ? "FORCE ON" : "FORCE OFF");
+    _sprite.drawString(pModeStr, _btnPumpOverride.x + 46, _btnPumpOverride.y + 36);
 }
 
 void DisplayGUI::drawSettingsPage(const SystemTelemetry& telemetry) {
     // Top Subheader
     _sprite.setTextColor(0x03FF, TFT_BLACK);
-    _sprite.drawString("MANUAL OVERRIDES & DIAGNOSTICS (PIN PROTECTED)", 12, 38);
+    _sprite.drawString("MANUAL OVERRIDES & DIAGNOSTICS (PIN PROTECTED)", 16, 44);
 
     auto drawTile = [this](const Rect& r, const char* label, const char* modeStr, uint16_t badgeColor, const char* subText) {
-        _sprite.fillRoundRect(r.x, r.y, r.w, r.h, 6, 0x2124);
-        _sprite.drawRoundRect(r.x, r.y, r.w, r.h, 6, 0x632C);
+        _sprite.fillRoundRect(r.x, r.y, r.w, r.h, 8, 0x2124);
+        _sprite.drawRoundRect(r.x, r.y, r.w, r.h, 8, 0x632C);
 
         // Label
         _sprite.setTextColor(TFT_WHITE, 0x2124);
-        _sprite.drawString(label, r.x + 8, r.y + 7);
+        _sprite.drawString(label, r.x + 14, r.y + 14);
 
         // Subtext / status
         _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-        _sprite.drawString(subText, r.x + 8, r.y + 25);
+        _sprite.drawString(subText, r.x + 14, r.y + 38);
 
         // Mode Pill Button on Right
-        int pillW = 82, pillH = 28, pillX = r.x + r.w - pillW - 6, pillY = r.y + 9;
-        _sprite.fillRoundRect(pillX, pillY, pillW, pillH, 4, badgeColor);
+        int pillW = 110, pillH = 38, pillX = r.x + r.w - pillW - 12, pillY = r.y + 15;
+        _sprite.fillRoundRect(pillX, pillY, pillW, pillH, 6, badgeColor);
         _sprite.setTextColor(TFT_WHITE, badgeColor);
-        _sprite.drawString(modeStr, pillX + 6, pillY + 8);
+        _sprite.drawString(modeStr, pillX + 16, pillY + 12);
     };
 
     // 1. Booster Pump Override
     const char* pumpStr = (telemetry.pumpOverride == MODE_AUTO) ? "AUTO" : ((telemetry.pumpOverride == MODE_FORCE_ON) ? "FORCE ON" : "FORCE OFF");
     uint16_t pumpBg = (telemetry.pumpOverride == MODE_AUTO) ? 0x1B2E : ((telemetry.pumpOverride == MODE_FORCE_ON) ? TFT_GREEN : 0x8400);
-    drawTile(_btnSetPump, "BOOSTER PUMP", pumpStr, pumpBg, telemetry.pump ? "Status: RUNNING" : "Status: OFF");
+    drawTile(_btnSetPump, "BOOSTER WATER PUMP", pumpStr, pumpBg, telemetry.pump ? "Hardware Status: RUNNING" : "Hardware Status: OFF");
 
     // 2. Line / Drain Valve Override
     const char* valveStr = (telemetry.valveOverride == MODE_AUTO) ? "AUTO" : ((telemetry.valveOverride == MODE_FORCE_ON) ? "FORCE OPN" : "FORCE CLS");
     uint16_t valveBg = (telemetry.valveOverride == MODE_AUTO) ? 0x1B2E : ((telemetry.valveOverride == MODE_FORCE_ON) ? TFT_GREEN : 0x8400);
-    drawTile(_btnSetValve, "LINE / DRAIN VALVE", valveStr, valveBg, telemetry.lineValve ? "Status: OPEN" : "Status: CLOSED");
+    drawTile(_btnSetValve, "LINE / DRAIN VALVE", valveStr, valveBg, telemetry.lineValve ? "Hardware Status: OPEN" : "Hardware Status: CLOSED");
 
     // 3. Tank High Sensor Override
     const char* highStr = (telemetry.tankHighOverride == MODE_AUTO) ? "AUTO" : ((telemetry.tankHighOverride == MODE_FORCE_ON) ? "SIM FULL" : "SIM NORM");
     uint16_t highBg = (telemetry.tankHighOverride == MODE_AUTO) ? 0x1B2E : 0xFD20;
-    drawTile(_btnSetHigh, "TANK HIGH (TOP FLOAT)", highStr, highBg, !telemetry.tankHigh ? "Level: FULL" : "Level: BELOW TOP");
+    drawTile(_btnSetHigh, "TANK HIGH (TOP FLOAT)", highStr, highBg, !telemetry.tankHigh ? "Sensor Reading: FULL STOP" : "Sensor Reading: BELOW FULL");
 
     // 4. Tank Low Sensor Override
     const char* lowStr = (telemetry.tankLowOverride == MODE_AUTO) ? "AUTO" : ((telemetry.tankLowOverride == MODE_FORCE_ON) ? "SIM LOW" : "SIM OK");
     uint16_t lowBg = (telemetry.tankLowOverride == MODE_AUTO) ? 0x1B2E : 0xFD20;
-    drawTile(_btnSetLow, "TANK LOW (MID FLOAT)", lowStr, lowBg, telemetry.tankLow ? "Level: LOW (DEMAND)" : "Level: ADEQUATE");
+    drawTile(_btnSetLow, "TANK LOW (MID FLOAT)", lowStr, lowBg, telemetry.tankLow ? "Sensor Reading: DEMAND ON" : "Sensor Reading: ADEQUATE");
 
     // 5. Tank Empty Sensor Override
     const char* emptyStr = (telemetry.tankEmptyOverride == MODE_AUTO) ? "AUTO" : ((telemetry.tankEmptyOverride == MODE_FORCE_ON) ? "SIM ALARM" : "SIM OK");
     uint16_t emptyBg = (telemetry.tankEmptyOverride == MODE_AUTO) ? 0x1B2E : TFT_RED;
-    drawTile(_btnSetEmpty, "TANK EMPTY (LOW FLOAT)", emptyStr, emptyBg, telemetry.tankEmpty ? "Level: CRITICAL EMPTY" : "Level: OK");
+    drawTile(_btnSetEmpty, "TANK EMPTY (LOW FLOAT)", emptyStr, emptyBg, telemetry.tankEmpty ? "Sensor Reading: CRITICAL EMPTY" : "Sensor Reading: NORMAL OK");
 
     // 6. Overcurrent Sensor Override
     const char* ocStr = (telemetry.overcurrentOverride == MODE_AUTO) ? "AUTO" : ((telemetry.overcurrentOverride == MODE_FORCE_ON) ? "SIM TRIP" : "SIM NORM");
     uint16_t ocBg = (telemetry.overcurrentOverride == MODE_AUTO) ? 0x1B2E : TFT_RED;
-    drawTile(_btnSetOvercurrent, "OVERCURRENT SENSOR", ocStr, ocBg, (telemetry.pumpOvercurrent || telemetry.pumpOvercurrentTrip) ? "Fault: OVERLOAD" : "Fault: NORMAL");
+    drawTile(_btnSetOvercurrent, "OVERCURRENT SENSOR", ocStr, ocBg, (telemetry.pumpOvercurrent || telemetry.pumpOvercurrentTrip) ? "Fault State: OVERLOAD" : "Fault State: NORMAL");
 
     // 7. Undercurrent Sensor Override
     const char* ucStr = (telemetry.undercurrentOverride == MODE_AUTO) ? "AUTO" : ((telemetry.undercurrentOverride == MODE_FORCE_ON) ? "SIM DRY" : "SIM NORM");
     uint16_t ucBg = (telemetry.undercurrentOverride == MODE_AUTO) ? 0x1B2E : 0xFD20;
-    drawTile(_btnSetUndercurrent, "UNDERCURRENT SENSOR", ucStr, ucBg, (telemetry.pumpUndercurrent || telemetry.pumpUndercurrentTrip) ? "Fault: DRY RUN" : "Fault: NORMAL");
+    drawTile(_btnSetUndercurrent, "UNDERCURRENT SENSOR", ucStr, ucBg, (telemetry.pumpUndercurrent || telemetry.pumpUndercurrentTrip) ? "Fault State: DRY RUN" : "Fault State: NORMAL");
 
     // 8. Freeze Sensor Override
     const char* fzStr = (telemetry.freezeOverride == MODE_AUTO) ? "AUTO" : ((telemetry.freezeOverride == MODE_FORCE_ON) ? "SIM <40F" : "SIM >=40F");
     uint16_t fzBg = (telemetry.freezeOverride == MODE_AUTO) ? 0x1B2E : TFT_BLUE;
-    drawTile(_btnSetFreeze, "FREEZE SENSOR (<40F)", fzStr, fzBg, telemetry.freezeSensor ? "Temp: <40F DANGER" : "Temp: >=40F WARM");
+    drawTile(_btnSetFreeze, "FREEZE SENSOR (<40°F)", fzStr, fzBg, telemetry.freezeSensor ? "Sensor State: <40°F FREEZE HAZARD" : "Sensor State: >=40°F NORMAL");
 
-    // Bottom Action 1: Reset All to Auto
-    _sprite.fillRoundRect(_btnResetAllAuto.x, _btnResetAllAuto.y, _btnResetAllAuto.w, _btnResetAllAuto.h, 6, 0x8400);
+    // Bottom Action 1: Reset All to Auto (X=16, Y=390, W=376, H=68)
+    _sprite.fillRoundRect(_btnResetAllAuto.x, _btnResetAllAuto.y, _btnResetAllAuto.w, _btnResetAllAuto.h, 8, 0x8400);
     _sprite.setTextColor(TFT_WHITE, 0x8400);
-    _sprite.drawString("RESET ALL TO AUTO", _btnResetAllAuto.x + 36, _btnResetAllAuto.y + 16);
+    _sprite.drawString("RESET ALL TO AUTO", _btnResetAllAuto.x + 90, _btnResetAllAuto.y + 26);
 
-    // Bottom Action 2: Back to Dashboard
-    _sprite.fillRoundRect(_btnBackToDash.x, _btnBackToDash.y, _btnBackToDash.w, _btnBackToDash.h, 6, 0x1B2E);
+    // Bottom Action 2: Back to Dashboard (X=408, Y=390, W=376, H=68)
+    _sprite.fillRoundRect(_btnBackToDash.x, _btnBackToDash.y, _btnBackToDash.w, _btnBackToDash.h, 8, 0x1B2E);
     _sprite.setTextColor(TFT_WHITE, 0x1B2E);
-    _sprite.drawString("RETURN TO DASHBOARD", _btnBackToDash.x + 28, _btnBackToDash.y + 16);
+    _sprite.drawString("RETURN TO DASHBOARD", _btnBackToDash.x + 80, _btnBackToDash.y + 26);
 }
 
 void DisplayGUI::drawPinKeypad() {
-    // Dim background overlay
-    _sprite.fillRect(0, 0, 480, 320, 0x0821); // Translucent-style dark veil
+    // Dim background overlay (800x480)
+    _sprite.fillRect(0, 0, 800, 480, 0x0821);
 
-    // Modal Window (X=90, Y=26, W=300, H=268)
-    int mx = 90, my = 26, mw = 300, mh = 268;
-    _sprite.fillRoundRect(mx, my, mw, mh, 10, 0x18E3);
-    _sprite.drawRoundRect(mx, my, mw, mh, 10, 0x03FF);
+    // Modal Window (X=220, Y=40, W=360, H=400)
+    int mx = 220, my = 40, mw = 360, mh = 400;
+    _sprite.fillRoundRect(mx, my, mw, mh, 12, 0x18E3);
+    _sprite.drawRoundRect(mx, my, mw, mh, 12, 0x03FF);
 
     // Modal Header
     _sprite.setTextColor(0x03FF, 0x18E3);
-    _sprite.setTextSize(1);
-    _sprite.drawString("SECURITY PIN REQUIRED", mx + 20, my + 10);
+    _sprite.drawString("SECURITY PIN REQUIRED", mx + 24, my + 16);
 
     // Close 'X' button in top right
-    _sprite.fillRoundRect(mx + mw - 34, my + 6, 26, 22, 4, 0x632C);
+    _sprite.fillRoundRect(mx + mw - 46, my + 10, 36, 30, 5, 0x632C);
     _sprite.setTextColor(TFT_WHITE, 0x632C);
-    _sprite.drawString("X", mx + mw - 25, my + 10);
+    _sprite.drawString("X", mx + mw - 32, my + 16);
 
     // PIN Display Box
-    int bx = mx + 20, by = my + 34, bw = mw - 40, bh = 34;
+    int bx = mx + 24, by = my + 50, bw = mw - 48, bh = 44;
     _sprite.fillRoundRect(bx, by, bw, bh, 6, 0x0821);
     _sprite.drawRoundRect(bx, by, bw, bh, 6, _pinError ? TFT_RED : 0x03FF);
 
     if (_pinError) {
         _sprite.setTextColor(TFT_RED, 0x0821);
-        _sprite.drawString("WRONG PIN! TRY AGAIN", bx + 16, by + 10);
+        _sprite.drawString("WRONG PIN! PLEASE TRY AGAIN", bx + 22, by + 14);
     } else {
         String dots = "";
         for (size_t i = 0; i < _enteredPin.length(); i++) {
-            dots += "* ";
+            dots += "*  ";
         }
         if (dots.length() == 0) {
             _sprite.setTextColor(0x7BEF, 0x0821);
-            _sprite.drawString("Enter 4-digit PIN...", bx + 16, by + 10);
+            _sprite.drawString("Enter 4-digit PIN...", bx + 22, by + 14);
         } else {
             _sprite.setTextColor(0x03FF, 0x0821);
-            _sprite.drawString(dots.c_str(), bx + 24, by + 10);
+            _sprite.drawString(dots.c_str(), bx + 36, by + 14);
         }
     }
 
@@ -765,13 +839,13 @@ void DisplayGUI::drawPinKeypad() {
         uint16_t btnBg = 0x2945;
         uint16_t btnTxt = TFT_WHITE;
         if (i == 9) { // CLR
-            btnBg = 0x8000; // Red-dark
+            btnBg = 0x8000;
         } else if (i == 11) { // OK
-            btnBg = 0x03E0; // Green
+            btnBg = 0x03E0;
         }
-        _sprite.fillRoundRect(_keypadBtns[i].x, _keypadBtns[i].y, _keypadBtns[i].w, _keypadBtns[i].h, 5, btnBg);
+        _sprite.fillRoundRect(_keypadBtns[i].x, _keypadBtns[i].y, _keypadBtns[i].w, _keypadBtns[i].h, 6, btnBg);
         _sprite.setTextColor(btnTxt, btnBg);
-        _sprite.drawString(keyLabels[i], _keypadBtns[i].x + (_keypadBtns[i].w / 2) - 6, _keypadBtns[i].y + 10);
+        _sprite.drawString(keyLabels[i], _keypadBtns[i].x + (_keypadBtns[i].w / 2) - 8, _keypadBtns[i].y + 16);
     }
 }
 
@@ -779,7 +853,7 @@ void DisplayGUI::update(const SystemTelemetry& telemetry, bool wifiConnected, bo
     handleTouchInput();
 
     unsigned long now = millis();
-    if (now - _lastRenderTime < 100) { // 10 FPS refresh for UI
+    if (now - _lastRenderTime < 100) { // 10 FPS refresh rate
         return;
     }
     _lastRenderTime = now;

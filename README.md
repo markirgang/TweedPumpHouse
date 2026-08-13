@@ -1,6 +1,6 @@
 # Tweed Boulevard / Route 9W ESP32 Water System Controller
 
-Autonomous water pumping, holding tank monitoring, and freeze protection system powered by an **ESP32 with WT32-SC01 3.5" Capacitive Touchscreen**, featuring direct **Web Bluetooth (BLE)** connection and a **Netlify Cloud Web App** for remote monitoring.
+Autonomous water pumping, holding tank monitoring, and freeze protection system powered by a **Waveshare ESP32-S3 Touch LCD-7 (7.0" 800x480 Capacitive Touchscreen)**, featuring direct **Web Bluetooth (BLE)** connection and a **Netlify Cloud Web App** for remote monitoring.
 
 ---
 
@@ -25,7 +25,7 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 |                                                                                     |
 |   [Municipal 9W] ---> [ Line Valve ] ---> [ Water Pump ] ---> [ Non-Return Check ]  |
 |                                                                                     |
-|   [WT32-SC01 Touch Screen] <---> [ESP32 Controller]                                 |
+|   [Waveshare ESP32-S3 7" Touchscreen] <---> [ESP32-S3 Controller]                    |
 |       - DHT11 Temp/Humidity (Pump room)                                             |
 |       - External Freeze Sensor Switch (<40°F)                                       |
 |       - Alarm Buzzer / Relay (Tank Empty Alarm)                                     |
@@ -37,51 +37,68 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 
 ---
 
-## 2. Hardware Pinout & Wiring Table (WT32-SC01)
+## 2. Hardware Pinout & Wiring Table (Waveshare ESP32-S3-Touch-LCD-7)
 
-| Device / Signal | ESP32 Pin | Type | Logic / Behavior |
-| :--- | :--- | :--- | :--- |
-| **Shared Valve Relay (Line & Drain)** | `GPIO 2` | Output (Relay) | HIGH = Line Valve Open & Drain Valve Closed (Energized)<br>LOW = Line Valve Closed & Drain Valve Open (Draining Pipe) |
-| **Water Pump Relay** | `GPIO 25` | Output (Relay) | HIGH = Pump Running (Energized), LOW = Off |
-| **Alarm Buzzer / Relay** | `GPIO 26` | Output (Relay) | HIGH = Sounding Alarm, LOW = Muted/Off |
-| **Tank Empty Float** | `GPIO 27` | Input (Pullup) | Down (Non-floating) = LOW (ALARM), Floating = HIGH |
-| **Tank Low Float** | `GPIO 32` | Input (Pullup) | Down = LOW (Demand Water/Pump), Floating = HIGH |
-| **Tank High Float** | `GPIO 33` | Input (Pullup) | Down = LOW (Filling Allowed), Floating = HIGH (Full Stop) |
-| **Freeze Sensor (<40°F)**| `GPIO 35` | Input (Pullup) | Active/Cold (<40°F) = LOW, Warm (>=40°F) = HIGH |
-| **Pump Overcurrent Sensor**| `GPIO 34` (CON1) | Input | LOW = Overcurrent Trip (> Limit / Jammed Motor), HIGH = Normal |
-| **Pump Undercurrent Sensor**| `GPIO 36` (CON1) | Input (SENSOR_VP) | LOW = Dry Run Trip (Loss of Prime / Cavitation), HIGH = Normal |
-| **DHT11 Data Pin** | `GPIO 4` | Digital 1-Wire | Reads Pump Room Temp & Humidity |
-| **ST7796 Color LCD** | Integrated | SPI Bus | Pins 13, 12, 14, 15, 21, 22, 23 (3.5" 480x320) |
-| **FT6336U Capacitive Touch**| Integrated | I2C Bus | Pins 18 (SDA), 19 (SCL), 39 (INT) |
+| Device / Signal | Header & Pin | ESP32-S3 GPIO | Type | Logic / Behavior |
+| :--- | :--- | :--- | :--- | :--- |
+| **Shared Valve Relay (Line & Drain)** | RS485 Header (P5) Pin 1 | `GPIO 15` | Output (Relay) | HIGH = Line Valve Open & Drain Valve Closed (Energized)<br>LOW = Line Valve Closed & Drain Valve Open (Draining Pipe) |
+| **Water Pump Relay** | RS485 Header (P5) Pin 2 | `GPIO 16` | Output (Relay) | HIGH = Pump Running (Energized), LOW = Off |
+| **Alarm Buzzer / Relay** | CAN Header (P3) Pin 1 | `GPIO 19` | Output (Relay) | HIGH = Sounding Alarm, LOW = Muted/Off |
+| **Tank Empty Float** | CAN Header (P3) Pin 2 | `GPIO 20` | Input (Pullup) | LOW = Critical Empty (ALARM), HIGH = Adequate (Normal) |
+| **Tank Low Float** | UART2 Header (P1) Pin 3 | `GPIO 43` | Input (Pullup) | HIGH = Demand Water (Auto Pump), LOW = Adequate (Normal) |
+| **Tank High Float** | UART2 Header (P1) Pin 2 | `GPIO 44` | Input (Pullup) | LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed) |
+| **Freeze Sensor (<40°F)**| Sensor AD Header (P2) Pin 3 | `GPIO 6` | Input (Pullup) | HIGH = < 40°F (Freeze Hazard / Pipe Drain), LOW = >= 40°F (Normal / Warm) |
+| **DHT11 Data Pin** | Shared Header Pin | `GPIO 43` / Expander | Digital 1-Wire | Reads Pump Room Temp & Humidity |
+| **Pump Overcurrent Sensor**| Header / I2C Expander | Configurable | Input | LOW = Overcurrent Trip (> Limit / Jammed Motor), HIGH = Normal |
+| **Pump Undercurrent Sensor**| Header / I2C Expander | Configurable | Input | LOW = Dry Run Trip (Loss of Prime / Cavitation), HIGH = Normal |
+| **Hexapod Mouth Actuator / LED** | Expansion Header Pin | `GPIO 11` | Output (Digital) | HIGH = Mouth Open / Active Lip-Sync, LOW = Closed |
+| **Hexapod Ocular LED Eyes** | Expansion Header Pin | `GPIO 12` | Output (Digital) | HIGH = Eyes ON / Illuminated, LOW = Blinking Off (150ms) |
+| **7.0" 800x480 RGB LCD** | Integrated ST7262 | 20 Dedicated Pins | Parallel RGB | Data: GPIO 14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40<br>Sync: GPIO 5 (DE), 3 (VSYNC), 46 (HSYNC), 7 (PCLK) |
+| **GT911 Capacitive Touch** | Integrated I2C | `GPIO 8` (SDA), `GPIO 9` (SCL) | I2C Bus | Address `0x5D`, Interrupt `GPIO 4` |
+| **CH422G I/O Expander** | Integrated I2C | `GPIO 8` (SDA), `GPIO 9` (SCL) | I2C Bus | Address `0x24` / `0x38` (Controls Backlight, Resets) |
+
+---
+
+## 2B. Hexapod AI Robotic Mascot & Python Audio Stream Synchronization
+
+The controller includes dedicated outputs and a WebSocket bridge for an animated 6-legged cyber-hexapod robot assistant:
+* **Mouth Output (`GPIO 11`)**: Energizes when speech phonemes/volume cross threshold, driving physical/virtual mouth movement.
+* **Ocular LED Eyes (`GPIO 12`)**: Stays illuminated and automatically blinks off for ~150ms every 2.8 to 5.5 seconds.
+* **Speech Synchronization Switch**: Available in the Web App and firmware to toggle real-time speech lip-sync and eye blinking.
+* **Python Audio Stream Bridge (`hexapod_audio_stream.py`)**:
+  - Analyzes live audio streams in real-time using RMS amplitude thresholding.
+  - Streams binary PCM audio and JSON lip-sync packets over WebSocket (`ws://localhost:8765`).
+  - Supports speech test generation: `python hexapod_audio_stream.py --test-speech` or `python hexapod_audio_stream.py --say "System Nominal"`.
+  - Supports direct Serial bridging to ESP32: `python hexapod_audio_stream.py --serial COM3`.
 
 ---
 
 ## 3. Automation State Machine & Control Rules
 
 ### A. Tank Empty & Audible Alarm
-* **Tank Empty Switch Down (Non-floating)**: Tank is critically empty $\rightarrow$ The ESP32 energizes the **Alarm Relay (`GPIO 26`)**, sounding the audible alarm siren.
-* **Silence Alarm**: Pressing **Silence Alarm** on the WT32-SC01 touchscreen or in the Web App de-energizes the alarm relay. If the tank refills and empties again later, the alarm will automatically re-arm.
+* **Tank Empty Switch Down (Non-floating)**: Tank is critically empty $\rightarrow$ The ESP32 energizes the **Alarm Relay (`GPIO 19`)**, sounding the audible alarm siren.
+* **Silence Alarm**: Pressing **Silence Alarm** on the 7-inch touchscreen or in the Web App de-energizes the alarm relay. If the tank refills and empties again later, the alarm will automatically re-arm.
 
 ### B. Tank Low, Pump Cycle & On-Time Tracking
 * **Tank Low Switch Down**: Water is low.
-  1. Opens **Line Valve** (`GPIO 2` HIGH) to charge the fill/suction line.
+  1. Opens **Line Valve** (`GPIO 15` HIGH) to charge the fill/suction line.
   2. **5-Second Priming Delay**: Waits 5 seconds after the line valve is opened to allow municipal line pressure to establish positive suction head.
-  3. Turns ON **Booster Water Pump** (`GPIO 25` HIGH) to assist municipal pressure.
-  4. **Live Pump On-Time Tracking**: The touchscreen LCD, Web App, and Bluetooth interfaces display the exact elapsed running time (e.g. `08:34 / 25:00`).
+  3. Turns ON **Booster Water Pump** (`GPIO 16` HIGH) to assist municipal pressure.
+  4. **Live Pump On-Time Tracking**: The 7" touchscreen LCD, Web App, and Bluetooth interfaces display the exact elapsed running time (e.g. `08:34 / 25:00`).
   5. **Pump Duty Cycle Timer**: Pump runs for **maximum 25 minutes**. If 25 minutes elapse and Tank Low is still down, the pump enters a **2-hour mandatory cooldown** to protect the pump motor.
   6. **Timed Out Duration Display**: When timed out, all interfaces show that the pump ran for 25:00 along with the remaining cooldown time.
   7. **Reset Pump Timeout**: Pressing **Reset Pump Timeout** on the touchscreen or Web App immediately clears the cooldown and restarts the pump.
 
 ### C. Motor Health: Overcurrent & Undercurrent Protection
-* **Pump Overcurrent (`GPIO 34`)**: If motor load exceeds threshold (e.g. locked rotor, mechanical jam, electrical overload), the pump is shut off immediately, the audible alarm sounds, and an **OVERCURRENT FAULT** alert is displayed on the local screen, Web App, and BLE.
-* **Pump Undercurrent (`GPIO 36`)**: If the pump is running dry (e.g. municipal main dry, loss of suction prime, cavitation), the pump is shut off immediately to prevent seal burnout, and a **DRY RUN / UNDERCURRENT FAULT** alert is displayed.
+* **Pump Overcurrent**: If motor load exceeds threshold (e.g. locked rotor, mechanical jam, electrical overload), the pump is shut off immediately, the audible alarm sounds, and an **OVERCURRENT FAULT** alert is displayed on the local screen, Web App, and BLE.
+* **Pump Undercurrent**: If the pump is running dry (e.g. municipal main dry, loss of suction prime, cavitation), the pump is shut off immediately to prevent seal burnout, and a **DRY RUN / UNDERCURRENT FAULT** alert is displayed.
 * **Fault Reset**: Pressing **Reset Pump / Fault** clears the trip and allows normal operation to resume.
 
 ### D. Tank High & Shutoff
 * **Tank High Switch Floating (FULL)**: Tank is filled $\rightarrow$ Both **Line Valve and Pump turn OFF** until the water level drops back to **Tank Low**. The last run duration is saved and displayed.
 
 ### E. Freeze Protection Logic (<40°F Outside) & Pipe Draining
-* **Shared Relay Architecture**: Both the **Line Valve (Normally Closed)** and the **Fill Pipe Drain Valve (Normally Open)** share a single control relay (`GPIO 2`).
+* **Shared Relay Architecture**: Both the **Line Valve (Normally Closed)** and the **Fill Pipe Drain Valve (Normally Open)** share a single control relay (`GPIO 15`).
   - **Relay ON / Energized**: Line Valve is OPEN, Drain Valve is CLOSED (water allowed to fill holding tank).
   - **Relay OFF / De-energized**: Line Valve is CLOSED, Drain Valve is OPEN (fill pipe drains into pump house sump).
 * **Freeze Sensor ON (< 40°F)**: There is danger that water inside the exposed fill pipe between the Pump Room and Tweed Blvd could freeze and burst. When the water level is between High and Low, the **Shared Relay remains OFF** (Line Valve Closed, Drain Valve Open, pipe drained).
@@ -128,13 +145,14 @@ pio device monitor -b 115200
 ```
 
 ### Using Arduino IDE:
-1. Open **[`arduino/TweedPumpHouse/TweedPumpHouse.ino`](file:///arduino/TweedPumpHouse/TweedPumpHouse.ino)** in Arduino IDE.
+1. Open **[`arduino/TweedPumpHouse/TweedPumpHouse.ino`](file:///c:/Users/marki/OneDrive/Desktop/TweedPumpHouse/arduino/TweedPumpHouse/TweedPumpHouse.ino)** in Arduino IDE.
 2. Install ESP32 board support (`esp32` by Espressif).
 3. Install required libraries: `LovyanGFX`, `ArduinoJson`, `DHT sensor library`, `Adafruit Unified Sensor`, `ESPAsyncWebServer`, `AsyncTCP`.
-4. Select board: **ESP32 Wrover Module** (or WT32-SC01 board profile).
-5. Set **Partition Scheme**: `Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)` or `Huge APP (3MB No OTA/1MB SPIFFS)`.
-6. Set **PSRAM**: `Enabled`.
-7. Click **Upload** (`Ctrl + U`).
+4. Select board: **ESP32S3 Dev Module**.
+5. Set **Flash Size**: `16MB (128Mb)`.
+6. Set **PSRAM**: `OPI PSRAM` (or `Enabled`).
+7. Set **USB CDC On Boot**: `Enabled`.
+8. Click **Upload** (`Ctrl + U`).
 
 ---
 
@@ -176,5 +194,4 @@ git worktree remove ../TweedPumpHouse-dev
 ```
 
 > [!TIP]
-> **OneDrive Sync Recommendation**: If cloning on a second machine, it is recommended to clone into a local non-cloud directory (e.g. `C:\Projects\TweedPumpHouse` or `~/Projects/TweedPumpHouse`) rather than an active cloud-sync folder to ensure OneDrive background file locks do not conflict with local Git operations.
-
+> **OneDrive Sync Recommendation**: If cloning on a second machine, it is recommended to clone into a local non-non-cloud directory (e.g. `C:\Projects\TweedPumpHouse` or `~/Projects/TweedPumpHouse`) rather than an active cloud-sync folder to ensure OneDrive background file locks do not conflict with local Git operations.

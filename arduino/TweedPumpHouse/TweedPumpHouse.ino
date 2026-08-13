@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * TWEED BLVD / ROUTE 9W WATER PUMP HOUSE SYSTEM
- * WT32-SC01 ESP32 Controller with BLE & Cloud Web Sync
+ * Waveshare ESP32-S3 Touch LCD-7 Controller with BLE & Cloud Web Sync
  * ============================================================================
  * 
  * ARDUINO IDE COMPILATION INSTRUCTIONS:
@@ -15,12 +15,13 @@
  *    - AsyncTCP (https://github.com/me-no-dev/AsyncTCP)
  * 
  * 2. Arduino IDE Board Settings (Tools menu):
- *    - Board: "ESP32 Wrover Module" (or "ESP32 Dev Module")
- *    - PSRAM: "Enabled"
- *    - Flash Size: "4MB (32Mb)"
- *    - Flash Frequency: "80MHz"
- *    - Partition Scheme: "Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)" or "Huge APP (3MB No OTA/1MB SPIFFS)"
- *    - Core Debug Level: "None" (or "Info")
+ *    - Board: "ESP32S3 Dev Module"
+ *    - USB CDC On Boot: "Enabled"
+ *    - CPU Frequency: "240MHz (WiFi)"
+ *    - Flash Mode: "QIO 80MHz"
+ *    - Flash Size: "16MB (128Mb)"
+ *    - Partition Scheme: "16M Flash (3MB APP/9.9MB FATFS)" or "Huge APP (3MB No OTA/1MB SPIFFS)"
+ *    - PSRAM: "OPI PSRAM" (or "Enabled")
  *    - Upload Speed: "921600"
  * ============================================================================
  */
@@ -37,16 +38,17 @@ void setup() {
     delay(500);
     Serial.println("\n=======================================================");
     Serial.println("  TWEED BLVD / ROUTE 9W WATER PUMP HOUSE SYSTEM");
-    Serial.println("  WT32-SC01 ESP32 Controller with BLE & Cloud Web Sync");
+    Serial.println("  Waveshare ESP32-S3 Touch LCD-7 Controller");
+    Serial.println("  BLE 5.0, Local Web Server & Netlify Cloud Sync");
     Serial.println("=======================================================\n");
 
     // 1. Initialize Hardware Sensors & Actuators
     systemController.begin();
     Serial.println("[SYSTEM] Controller core and relay drivers initialized.");
 
-    // 2. Initialize WT32-SC01 3.5\" Touchscreen GUI
+    // 2. Initialize Waveshare 7.0\" 800x480 RGB Touchscreen GUI & CH422G Expander
     displayGui.begin();
-    Serial.println("[LCD] WT32-SC01 LovyanGFX display & touch initialized.");
+    Serial.println("[LCD] Waveshare ESP32-S3-Touch-LCD-7 LovyanGFX display & touch initialized.");
 
     // 3. Initialize Bluetooth Low Energy (BLE) GATT Service
     bleManager.begin();
@@ -70,7 +72,7 @@ void loop() {
     // 4. Update Web Sync & Cloud Push (if connected to WiFi / Netlify endpoint)
     webSyncManager.update(telemetryJson);
 
-    // 5. Update WT32-SC01 On-Screen Touch Display & Handle Touch Presses
+    // 5. Update Waveshare 7.0\" Touch Display & Handle Touch Presses
     displayGui.update(
         systemController.getTelemetry(), 
         webSyncManager.isWiFiConnected(), 

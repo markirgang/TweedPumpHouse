@@ -56,6 +56,15 @@ WaterSystemController::WaterSystemController()
     _telemetry.dhtValid = false;
 
     _telemetry.isFillCycleActive = false;
+
+    // Hexapod Default State
+    _telemetry.hexapodMouth = false;
+    _telemetry.hexapodEyes = true;
+    _telemetry.hexapodSpeechSync = true;
+    _hexapodLastBlinkTime = 0;
+    _hexapodIsBlinking = false;
+    _hexapodNextBlinkInterval = 3500;
+    _hexapodMouthOffTime = 0;
 }
 
 void WaterSystemController::begin() {
@@ -67,6 +76,12 @@ void WaterSystemController::begin() {
     digitalWrite(PIN_RELAY_LINE_VALVE, LOW);
     digitalWrite(PIN_RELAY_PUMP, LOW);
     digitalWrite(PIN_RELAY_ALARM, LOW);
+
+    // Configure Hexapod Physical Mouth & Eyes Actuator / LED Output Pins
+    pinMode(PIN_HEXAPOD_MOUTH, OUTPUT);
+    pinMode(PIN_HEXAPOD_EYES, OUTPUT);
+    digitalWrite(PIN_HEXAPOD_MOUTH, LOW);
+    digitalWrite(PIN_HEXAPOD_EYES, HIGH); // Default eyes illuminated
 
     // Configure Float Switch and Freeze Sensor Input Pins with Pull-Up
     pinMode(PIN_FLOAT_TANK_EMPTY, INPUT_PULLUP);
@@ -89,20 +104,18 @@ void WaterSystemController::readSensors() {
     unsigned long now = millis();
 
     // Debounced Reading for Float Switches, Freeze Sensor & Current Sensors
-    // Wiring convention (Switch to GND with Pullup):
-    // - Tank Empty Switch: Down (OFF/Empty) = Pin HIGH (or LOW if NO/NC configured)
-    //   Here we standardize active LOW on physical pin when switch contact closes.
-    //   Tank Empty: Floating = Closed to GND (LOW) -> Not Empty. Down = Open (HIGH) -> Empty.
-    //   Tank Low: Floating = Open (HIGH) -> OK. Down = Closed to GND (LOW) -> Tank Low.
-    //   Tank High: Floating = Open (HIGH) -> Tank High Floating/Full. Down = Closed to GND (LOW) -> Dropped.
-    //   Freeze Sensor: <40°F Closed to GND (LOW) -> Freeze danger. >=40°F Open (HIGH) -> Warm.
-    //   Overcurrent Switch: Closed to GND (LOW) -> Overload trip. Open (HIGH) -> Normal.
-    //   Undercurrent Switch: Closed to GND (LOW) -> Dry run / low load trip. Open (HIGH) -> Normal.
+    // Hardware Logic:
+    // - Tank Low Switch (GPIO 43):    LOW = Adequate (Auto OK), HIGH = Demand Water (Fill Demand)
+    // - Tank High Switch (GPIO 44):   LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed)
+    // - Freeze Sensor Switch (GPIO 6): HIGH = <40°F (Freeze Hazard / Pipe Drain), LOW = >=40°F (Warm / Normal Top-Off)
+    // - Tank Empty Switch (GPIO 20):  LOW = Critical Empty (ALARM), HIGH = Adequate (Normal OK)
+    // - Overcurrent Switch (GPIO 19): LOW = Overload fault, HIGH = Normal
+    // - Undercurrent Switch (GPIO 20):LOW = Dry-run fault, HIGH = Normal
     
-    bool rawEmpty = (digitalRead(PIN_FLOAT_TANK_EMPTY) == HIGH); // HIGH = switch down / empty
-    bool rawLow = (digitalRead(PIN_FLOAT_TANK_LOW) == LOW);       // LOW = switch down / low water
-    bool rawHigh = (digitalRead(PIN_FLOAT_TANK_HIGH) == LOW);     // LOW = switch down / filling allowed. HIGH = floating/FULL
-    bool rawFreeze = (digitalRead(PIN_FREEZE_SENSOR) == LOW);     // LOW = <40°F freeze danger
+    bool rawEmpty = (digitalRead(PIN_FLOAT_TANK_EMPTY) == LOW);  // LOW = Critical Empty (ALARM), HIGH = Adequate (Normal)
+    bool rawLow = (digitalRead(PIN_FLOAT_TANK_LOW) == HIGH);     // HIGH = Demand Water, LOW = Adequate
+    bool rawHigh = (digitalRead(PIN_FLOAT_TANK_HIGH) == HIGH);   // HIGH = Below Full (filling allowed), LOW = Tank Full (Shutoff Stop)
+    bool rawFreeze = (digitalRead(PIN_FREEZE_SENSOR) == HIGH);   // HIGH = <40°F freeze hazard, LOW = >=40°F normal
     bool rawOvercurrent = (digitalRead(PIN_PUMP_OVERCURRENT) == LOW);   // LOW = Overcurrent fault
     bool rawUndercurrent = (digitalRead(PIN_PUMP_UNDERCURRENT) == LOW); // LOW = Undercurrent / Dry-run fault
 
@@ -433,12 +446,59 @@ void WaterSystemController::updateActuators() {
     digitalWrite(PIN_RELAY_LINE_VALVE, _telemetry.lineValve ? HIGH : LOW);
     digitalWrite(PIN_RELAY_PUMP, _telemetry.pump ? HIGH : LOW);
     digitalWrite(PIN_RELAY_ALARM, _telemetry.alarm ? HIGH : LOW);
+
+    // Write physical pin outputs to Hexapod Mascot (Active HIGH)
+    digitalWrite(PIN_HEXAPOD_MOUTH, _telemetry.hexapodMouth ? HIGH : LOW);
+    digitalWrite(PIN_HEXAPOD_EYES, _telemetry.hexapodEyes ? HIGH : LOW);
 }
 
 void WaterSystemController::update() {
     readSensors();
     executeStateMachine();
+
+    // Natural Hexapod LED Eyes Blinking & Mouth Pulse Handling
+    unsigned long now = millis();
+    if (_telemetry.hexapodEyes) {
+        if (!_hexapodIsBlinking && (now - _hexapodLastBlinkTime >= _hexapodNextBlinkInterval)) {
+            _hexapodIsBlinking = true;
+            _hexapodLastBlinkTime = now;
+            digitalWrite(PIN_HEXAPOD_EYES, LOW); // Blink eyes OFF briefly (150ms)
+        } else if (_hexapodIsBlinking && (now - _hexapodLastBlinkTime >= HEXAPOD_BLINK_DURATION_MS)) {
+            _hexapodIsBlinking = false;
+            _hexapodLastBlinkTime = now;
+            _hexapodNextBlinkInterval = HEXAPOD_BLINK_INTERVAL_MIN_MS + (now % (HEXAPOD_BLINK_INTERVAL_MAX_MS - HEXAPOD_BLINK_INTERVAL_MIN_MS));
+            digitalWrite(PIN_HEXAPOD_EYES, HIGH); // Restore eyes to ON
+        }
+    }
+
+    // Auto-close mouth if speech sync pulse timed out
+    if (_telemetry.hexapodSpeechSync && _telemetry.hexapodMouth && _hexapodMouthOffTime > 0 && now >= _hexapodMouthOffTime) {
+        _telemetry.hexapodMouth = false;
+        _hexapodMouthOffTime = 0;
+    }
+
     updateActuators();
+}
+
+void WaterSystemController::setHexapodMouth(bool open) {
+    _telemetry.hexapodMouth = open;
+    if (open && _telemetry.hexapodSpeechSync) {
+        _hexapodMouthOffTime = millis() + HEXAPOD_MOUTH_AUTO_CLOSE_MS;
+    }
+}
+
+void WaterSystemController::setHexapodEyes(bool on) {
+    _telemetry.hexapodEyes = on;
+    _hexapodIsBlinking = false;
+    _hexapodLastBlinkTime = millis();
+}
+
+void WaterSystemController::setHexapodSpeechSync(bool enabled) {
+    _telemetry.hexapodSpeechSync = enabled;
+    if (!enabled) {
+        _telemetry.hexapodMouth = false;
+        _hexapodMouthOffTime = 0;
+    }
 }
 
 void WaterSystemController::silenceAlarm() {
@@ -561,6 +621,11 @@ String WaterSystemController::getTelemetryJson() const {
     doc["undercurrentOverride"] = (int)_telemetry.undercurrentOverride;
     doc["freezeOverride"] = (int)_telemetry.freezeOverride;
 
+    // Hexapod Robotic Mascot
+    doc["hexapodMouth"] = _telemetry.hexapodMouth;
+    doc["hexapodEyes"] = _telemetry.hexapodEyes;
+    doc["hexapodSpeechSync"] = _telemetry.hexapodSpeechSync;
+
     // Pump timers & On-Time Tracking
     doc["pumpTimingState"] = (int)_telemetry.pumpTimingState;
     doc["pumpTimedOut"] = (_telemetry.pumpTimingState == PUMP_STATE_COOLDOWN);
@@ -668,5 +733,17 @@ bool WaterSystemController::processCommandJson(const String& jsonString) {
         emergencyStop();
     }
 
+    // Hexapod Robotic Mascot & Speech Sync Commands
+    if (doc.containsKey("setHexapodMouth")) {
+        setHexapodMouth(doc["setHexapodMouth"].as<bool>());
+    }
+    if (doc.containsKey("setHexapodEyes")) {
+        setHexapodEyes(doc["setHexapodEyes"].as<bool>());
+    }
+    if (doc.containsKey("setHexapodSpeechSync")) {
+        setHexapodSpeechSync(doc["setHexapodSpeechSync"].as<bool>());
+    }
+
     return true;
 }
+

@@ -1,6 +1,6 @@
 # Tweed Pump House — Arduino IDE Firmware Setup
 
-This directory contains the firmware packaged specifically for direct compilation and flashing using the standard **Arduino IDE (v2.x or v1.8.x)**.
+This directory contains the firmware packaged specifically for direct compilation and flashing using the standard **Arduino IDE (v2.x or v1.8.x)** on the **Waveshare ESP32-S3-Touch-LCD-7** development board.
 
 ---
 
@@ -12,7 +12,7 @@ Open the main sketch file in Arduino IDE:
 When you open `TweedPumpHouse.ino`, Arduino IDE will automatically load the accompanying source files in neighboring tabs:
 - `config.h` — Hardware GPIO mapping, sensor thresholds, WiFi/BLE credentials
 - `controller.h` / `controller.cpp` — State machine and relay automation logic
-- `display_gui.h` / `display_gui.cpp` — WT32-SC01 (ST7796 3.5" LCD + FT6336U Touch) GUI
+- `display_gui.h` / `display_gui.cpp` — Waveshare 7.0" (ST7262 800x480 RGB + GT911 Touch + CH422G Expander) GUI
 - `ble_service.h` / `ble_service.cpp` — Web Bluetooth GATT server
 - `web_sync.h` / `web_sync.cpp` — Local web server & cloud webhook synchronization
 
@@ -24,14 +24,16 @@ From the **Tools** menu in Arduino IDE, select:
 
 | Setting | Recommended Value |
 |---|---|
-| **Board** | `ESP32 Wrover Module` *(or `ESP32 Dev Module`)* |
-| **PSRAM** | `Enabled` *(Important for WT32-SC01 graphics buffer)* |
-| **Flash Size** | `4MB (32Mb)` |
-| **Flash Frequency** | `80MHz` |
-| **Partition Scheme** | `Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)` or `Huge APP (3MB No OTA/1MB SPIFFS)` |
+| **Board** | `ESP32S3 Dev Module` |
+| **USB CDC On Boot** | `Enabled` |
+| **CPU Frequency** | `240MHz (WiFi)` |
+| **Flash Mode** | `QIO 80MHz` |
+| **Flash Size** | `16MB (128Mb)` |
+| **Partition Scheme** | `16M Flash (3MB APP/9.9MB FATFS)` or `Huge APP (3MB No OTA/1MB SPIFFS)` |
+| **PSRAM** | `OPI PSRAM` *(Important for 800x480 frame buffer)* |
 | **Upload Speed** | `921600` *(or `115200` if connection is unstable)* |
 | **Core Debug Level** | `None` (or `Info` / `Verbose` for serial debugging) |
-| **Port** | Select the COM port connected to the WT32-SC01 |
+| **Port** | Select the COM port connected to the Waveshare board |
 
 ---
 
@@ -50,7 +52,16 @@ Install the following libraries via **Tools > Manage Libraries...** (or via GitH
 
 ## 🚀 How to Flash
 
-1. Connect your **WT32-SC01** via USB-C to your computer.
-2. Select the correct **COM Port** in Arduino IDE.
+1. Connect your **Waveshare ESP32-S3-Touch-LCD-7** via USB-C to your computer.
+2. Select the correct **COM Port** and **ESP32S3 Dev Module** board settings.
 3. Click **Upload** (or press `Ctrl + U`).
 4. Open the **Serial Monitor** at **115200 baud** to view system initialization logs and telemetry.
+
+---
+
+## 🕷️ Hexapod Mascot & AI Audio Stream
+
+- **Hexapod Mouth Output**: `GPIO 11` (Active HIGH = Mouth Open / Speaking)
+- **Hexapod LED Eyes Output**: `GPIO 12` (Active HIGH = Eyes Illuminated, blinks for 150ms every 3–6s)
+- **Python Audio Stream Bridge**: Run `python hexapod_audio_stream.py --test-speech` or `python hexapod_audio_stream.py --serial COMx` to synchronize audio lip-sync with the hardware and Web App.
+

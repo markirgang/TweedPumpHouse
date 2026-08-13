@@ -6,7 +6,7 @@
   <title>Tweed Blvd / Route 9W Water System Controller</title>
   
   <!-- SEO & Meta -->
-  <meta name="description" content="Industrial automated water pumping and monitoring controller for Tweed Boulevard and Route 9W with ESP32, WT32-SC01 touchscreen, Bluetooth BLE, and Netlify Cloud remote access.">
+  <meta name="description" content="Industrial automated water pumping and monitoring controller for Tweed Boulevard and Route 9W with Waveshare ESP32-S3 7.0-inch touchscreen, Bluetooth BLE, and Netlify Cloud remote access.">
   <meta name="theme-color" content="#0284c7">
   
   <!-- Fonts -->
@@ -32,11 +32,16 @@
       </div>
       <div class="brand-text">
         <h1>Tweed Blvd & Route 9W Water System</h1>
-        <p>ESP32 WT32-SC01 Autonomous Pump House & Holding Tank Controller</p>
+        <p>Waveshare ESP32-S3 7.0" Autonomous Pump House & Holding Tank Controller</p>
       </div>
     </div>
 
     <div class="header-status">
+      <button class="btn-header-hexapod active" id="btnHexapodToggle" title="Toggle Hexapod Robot Mascot & Animations">
+        <span class="hex-icon">🕷️</span>
+        <span class="hex-label">Hexapod: ON</span>
+        <span class="hex-dot on"></span>
+      </button>
       <button class="btn-lock-status locked" id="btnLockStatus" title="Click to unlock or lock controls">
         <span id="lockIcon">🔒</span>
         <span id="lockText">Controls Locked</span>
@@ -581,6 +586,125 @@
           </div>
         </section>
 
+        <!-- 6. Hexapod Robotic Assistant & Talking Animation Settings -->
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <div class="header-left">
+              <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/></svg>
+              <div>
+                <h3>Hexapod Robot Mascot &amp; Speech Synchronization</h3>
+                <p>Configure robotic assistant visuals, articulated legs, mouth equalizer, and AI Python audio stream sync</p>
+              </div>
+            </div>
+            <span class="settings-pill-badge" style="background:rgba(0,240,255,0.15);color:#00f0ff;border-color:rgba(0,240,255,0.3)">AI Companion</span>
+          </div>
+
+          <div class="settings-controls-list">
+            <!-- Animation Switch -->
+            <div class="setting-switch-row">
+              <div class="setting-meta">
+                <h4>Hexapod Talking Animations</h4>
+                <p>Enable 6-legged robot avatar, animated mouth frequency bars, and reactive speech bubbles</p>
+              </div>
+              <label class="switch-slider-wrap">
+                <input type="checkbox" id="switchHexapodAnim" checked>
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <!-- Speech Synchronization Switch (Mouth Lip-Sync & Eye Blinking) -->
+            <div class="setting-switch-row">
+              <div class="setting-meta">
+                <h4>Speech Audio Synchronization</h4>
+                <p>Synchronize Hexapod physical &amp; virtual mouth movement and LED eye blinking with Python audio stream &amp; TTS voice</p>
+              </div>
+              <label class="switch-slider-wrap">
+                <input type="checkbox" id="switchHexapodSpeechSync" checked>
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <!-- Voice Synthesis Switch -->
+            <div class="setting-switch-row">
+              <div class="setting-meta">
+                <h4>Robotic Voice Audio Synthesis</h4>
+                <p>Enable spoken audio commentary and robotic sound chirps on system state changes</p>
+              </div>
+              <label class="switch-slider-wrap">
+                <input type="checkbox" id="switchHexapodVoice" checked>
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <!-- Live Physical / Virtual Output Indicators -->
+            <div class="setting-switch-row" style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 12px 16px; margin: 8px 0;">
+              <div class="setting-meta">
+                <h4>Hexapod Hardware Output Status</h4>
+                <p>Real-time physical actuator (GPIO 11) and LED eyes (GPIO 12) states</p>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <div style="text-align: center;">
+                  <span style="display:block; font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">Mouth (GPIO 11)</span>
+                  <span class="float-state-pill val-grey" id="badgeHexMouthStatus" style="margin-top:4px;">CLOSED</span>
+                </div>
+                <div style="text-align: center;">
+                  <span style="display:block; font-size:0.7rem; color:#94a3b8; text-transform:uppercase;">Eyes (GPIO 12)</span>
+                  <span class="float-state-pill val-cyan" id="badgeHexEyesStatus" style="margin-top:4px;">ILLUMINATED</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Python AI Audio Stream Bridge Section -->
+            <div style="background: rgba(2,132,199,0.08); border: 1px solid rgba(0,240,255,0.2); border-radius: 8px; padding: 16px; margin: 12px 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <h4 style="margin: 0; color: var(--cyan-water); font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                    <span>🐍</span> Python Audio Stream Bridge (ws://localhost:8765)
+                  </h4>
+                  <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: #94a3b8;">
+                    Connect to <code>hexapod_audio_stream.py</code> for AI voice streaming &amp; dynamic lip-sync
+                  </p>
+                </div>
+                <span class="float-state-pill val-grey" id="badgeAudioStreamStatus">DISCONNECTED</span>
+              </div>
+
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                <input type="text" id="inputAudioStreamUrl" value="ws://localhost:8765" style="flex: 1; min-width: 200px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; color: #fff; font-family: monospace; font-size: 0.85rem;" placeholder="ws://localhost:8765">
+                <button class="btn-action-small" id="btnToggleAudioStream" style="padding: 8px 16px;">
+                  Connect Audio Stream
+                </button>
+              </div>
+
+              <!-- Audio Stream Level Meter -->
+              <div style="margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">
+                  <span>Live Stream Volume (RMS)</span>
+                  <span id="audioStreamLevelText">0%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: #0f172a; border-radius: 4px; overflow: hidden; border: 1px solid #334155;">
+                  <div id="audioStreamLevelBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7, #00f0ff, #22c55e); transition: width 0.05s ease;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Test Speech Button -->
+            <div class="setting-switch-row" style="padding-top:16px;">
+              <div class="setting-meta">
+                <h4>Interactive Test &amp; Status Report</h4>
+                <p>Trigger Hexapod talking animation and receive live voice system telemetry with synchronized mouth &amp; eyes</p>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn-action-small" id="btnTestHexapodSpeech" style="padding:10px 16px;font-weight:700;">
+                  ▶ Test Talking Animation
+                </button>
+                <button class="btn-action-small" id="btnTriggerAiSpeechTest" style="padding:10px 16px; background:rgba(2,132,199,0.3); border-color:#00f0ff;">
+                  ⚡ Stream AI Speech
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
 
@@ -697,7 +821,7 @@
   <div class="modal-overlay" id="connModal">
     <div class="modal-content">
       <h2>Connect to Water Controller</h2>
-      <p>Select how you would like to communicate with the ESP32 WT32-SC01:</p>
+      <p>Select how you would like to communicate with the Waveshare ESP32-S3 Controller:</p>
 
       <div class="conn-option" id="btnOptBLE">
         <svg viewBox="0 0 24 24"><path d="M17.71,7.71L12,2H11V9.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L11,14.41V22H12L17.71,16.29L13.41,12L17.71,7.71M13,5.83L15.88,8.71L13,11.59V5.83M13,18.17V12.41L15.88,15.29L13,18.17Z"/></svg>
@@ -728,13 +852,14 @@
   </div>
 
   <footer class="app-footer">
-    <p>Tweed Boulevard & Route 9W Water System • Automated Municipal Booster Control • ESP32 WT32-SC01</p>
+    <p>Tweed Boulevard & Route 9W Water System • Automated Municipal Booster Control • Waveshare ESP32-S3 7.0"</p>
   </footer>
 
   <!-- Scripts -->
   <script src="js/schematic.js"></script>
   <script src="js/ble.js"></script>
   <script src="js/cloud.js"></script>
+  <script src="js/hexapod.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
