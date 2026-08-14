@@ -79,7 +79,7 @@ Because all direct ESP32-S3 GPIO pins are dedicated to driving the 800x480 paral
 
 ---
 
-## 2B. Hexapod AI Robotic Mascot & Python Audio Stream Synchronization
+## 2B. Hexabot AI Robotic Mascot & Python Audio Stream Synchronization
 
 The controller includes dedicated outputs and a WebSocket bridge for an animated 6-legged cyber-hexapod robot assistant:
 * **Mouth Output (`GPIO 11`)**: Energizes when speech phonemes/volume cross threshold, driving physical/virtual mouth movement.

@@ -86,7 +86,7 @@ class HexapodAssistant {
           <div class="speech-header">
             <div class="speech-bot-tag">
               <span class="pulse-dot"></span>
-              <span class="bot-name">HEXAPOD AI</span>
+              <span class="bot-name">HEXABOT AI</span>
             </div>
             <div class="speech-wave-bars" id="speechWaveBars">
               <span class="wave-bar"></span>

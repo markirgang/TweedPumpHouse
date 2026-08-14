@@ -59,7 +59,7 @@ Install the following libraries via **Tools > Manage Libraries...** (or via GitH
 
 ---
 
-## 🕷️ Hexapod Mascot & AI Audio Stream
+## 🕷️ Hexabot AI Mascot & Audio Stream
 
 - **Hexapod Mouth Output**: `GPIO 11` (Active HIGH = Mouth Open / Speaking)
 - **Hexapod LED Eyes Output**: `GPIO 12` (Active HIGH = Eyes Illuminated, blinks for 150ms every 3–6s)

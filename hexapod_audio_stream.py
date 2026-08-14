@@ -2,7 +2,7 @@
 """
 ===============================================================================
 TWEED BLVD / ROUTE 9W WATER SYSTEM
-Hexapod AI Audio Stream & Real-Time Lip-Sync Bridge
+Hexabot AI Audio Stream & Real-Time Lip-Sync Bridge
 ===============================================================================
 
 This script provides:
@@ -285,7 +285,7 @@ class WebSocketHTTPHandler(BaseHTTPRequestHandler):
         html = f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>Hexapod Audio Stream Server</title>
+    <title>Hexabot AI Audio Stream Server</title>
     <style>
         body {{ font-family: monospace; background: #0f172a; color: #38bdf8; padding: 30px; line-height: 1.6; }}
         h1 {{ color: #00f0ff; }}
@@ -295,7 +295,7 @@ class WebSocketHTTPHandler(BaseHTTPRequestHandler):
 </head>
 <body>
     <div class="card">
-        <h1><span class="status-dot"></span>Hexapod AI Audio Stream Server</h1>
+        <h1><span class="status-dot"></span>Hexabot AI Audio Stream Server</h1>
         <p><strong>WebSocket Endpoint:</strong> <code>ws://{self.headers.get('Host', 'localhost')}/</code></p>
         <p><strong>Connected Web App Clients:</strong> {len(CLIENTS)}</p>
         <p><strong>Mouth State:</strong> {"OPEN" if CURRENT_MOUTH_STATE else "CLOSED"}</p>
@@ -351,7 +351,7 @@ class WebSocketHTTPHandler(BaseHTTPRequestHandler):
         # Send initial status frame
         initial_frame = make_websocket_text_frame(json.dumps({
             "type": "welcome",
-            "message": "Connected to Hexapod AI Audio Stream Server",
+            "message": "Connected to Hexabot AI Audio Stream Server",
             "mouth": CURRENT_MOUTH_STATE,
             "eyes": CURRENT_EYE_STATE
         }))
@@ -404,7 +404,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 def start_server(host=DEFAULT_HOST, port=DEFAULT_PORT):
     server = ThreadedHTTPServer((host, port), WebSocketHTTPHandler)
     print(f"\n=======================================================")
-    print(f"  HEXAPOD AI AUDIO STREAM & LIP-SYNC SERVER ONLINE")
+    print(f"  HEXABOT AI AUDIO STREAM & LIP-SYNC SERVER ONLINE")
     print(f"  WebSocket Stream: ws://localhost:{port}/")
     print(f"  HTTP API Endpoint: http://localhost:{port}/api/status")
     print(f"=======================================================\n")
@@ -414,7 +414,7 @@ def start_server(host=DEFAULT_HOST, port=DEFAULT_PORT):
 # 7. Main Entry Point & CLI Commands
 # -----------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Hexapod AI Audio Stream & Lip-Sync Bridge")
+    parser = argparse.ArgumentParser(description="Hexabot AI Audio Stream & Lip-Sync Bridge")
     parser.add_argument("--serve", action="store_true", help="Start WebSocket & HTTP audio stream server")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to listen on (default 8765)")
     parser.add_argument("--say", type=str, help="Speak custom phrase with synchronized lip-sync")
