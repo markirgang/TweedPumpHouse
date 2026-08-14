@@ -4,33 +4,54 @@
 #include <Arduino.h>
 
 // =========================================================================
-// HARDWARE PIN ASSIGNMENTS (Waveshare ESP32-S3-Touch-LCD-7 Breakout Headers)
+// MCP23017 16-BIT I2C I/O EXPANDER PIN ASSIGNMENTS
 // =========================================================================
-// The Waveshare 7.0" 800x480 RGB display utilizes 20 dedicated GPIOs for the
-// parallel RGB bus. External actuators and sensors connect to the dedicated
-// peripheral headers on the board (RS485, CAN, UART2, Sensor AD, and I2C).
+// Because all direct ESP32-S3 GPIOs are utilized by the 800x480 RGB display bus
+// and onboard peripherals, all field inputs and relay outputs interface through
+// the MCP23017 I/O Expander module over the shared I2C bus (SDA: GPIO 8, SCL: GPIO 9).
 
-// Actuator Output Pins (Relay modules, Active HIGH)
-#define PIN_RELAY_LINE_VALVE         15   // RS485 Header (P5 Pin 1): Line Valve Relay (HIGH = Valve Open)
-#define PIN_RELAY_PUMP               16   // RS485 Header (P5 Pin 2): Water Pump Relay (HIGH = Pump ON)
-#define PIN_RELAY_ALARM              19   // CAN Header (P3 Pin 1): Tank Empty Alarm Relay / Buzzer (HIGH = Active)
-#define PIN_RELAY_LOW_TEMP_ALARM     13   // Auxiliary Output Pin: Pumphouse Interior Low Temp Alarm Relay (HIGH = Active Alarm)
+#define MCP23017_DEFAULT_ADDR        0x20 // Default I2C Address (A0=GND, A1=GND, A2=GND)
+#define MCP23017_IODIRA              0x00 // Port A I/O Direction (1=Input, 0=Output)
+#define MCP23017_IODIRB              0x01 // Port B I/O Direction (1=Input, 0=Output)
+#define MCP23017_GPPUA               0x0C // Port A Pull-Up Configuration (1=100k Pullup Enabled)
+#define MCP23017_GPPUB               0x0D // Port B Pull-Up Configuration (1=100k Pullup Enabled)
+#define MCP23017_GPIOA               0x12 // Port A Input Values
+#define MCP23017_GPIOB               0x13 // Port B Input Values
+#define MCP23017_OLATA               0x14 // Port A Output Latch
+#define MCP23017_OLATB               0x15 // Port B Output Latch
 
-// Float Sensor & Environmental Inputs
-// Confirmed Hardware Logic:
-// - Tank Empty Switch (GPIO 20):  LOW = Down/Empty (Critical Empty ALARM), HIGH = Floating/Adequate (Normal OK)
-// - Tank Low Switch (GPIO 43):    HIGH = Demand Water (Low), LOW = Adequate (Auto OK)
-// - Tank High Switch (GPIO 44):   LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed)
-// - Freeze Sensor Switch (GPIO 6): HIGH = <40°F (Freeze Hazard / Pipe Drain), LOW = >=40°F (Warm / Normal Top-Off)
-#define PIN_FLOAT_TANK_EMPTY    20   // CAN Header (P3 Pin 2): Lowest float switch (LOW = Critical Empty ALARM, HIGH = Adequate)
-#define PIN_FLOAT_TANK_LOW      43   // UART2 Header (P1 Pin 3): Middle float switch (HIGH = Demand Water, LOW = Adequate)
-#define PIN_FLOAT_TANK_HIGH     44   // UART2 Header (P1 Pin 2): Highest float switch (LOW = Tank Full Shutoff, HIGH = Below Full)
-#define PIN_FREEZE_SENSOR       6    // Sensor AD Header (P2 Pin 3): Freeze sensor (HIGH = <40°F Freeze Hazard, LOW = >=40°F Normal)
+// MCP23017 Port A: Field Inputs (Internal 100k Pull-Ups Enabled)
+#define MCP_PIN_FLOAT_TANK_HIGH      0    // GPA0 (Pin 21): Tank High Float (LOW = Tank Full Stop, HIGH = Below Full)
+#define MCP_PIN_FLOAT_TANK_LOW       1    // GPA1 (Pin 22): Tank Low Float (HIGH = Demand Water, LOW = Adequate)
+#define MCP_PIN_FLOAT_TANK_EMPTY     2    // GPA2 (Pin 23): Tank Empty Float (LOW = Critical Empty Alarm, HIGH = Adequate)
+#define MCP_PIN_FREEZE_SENSOR        3    // GPA3 (Pin 24): Outside Freeze Sensor (HIGH = <40°F Freeze Hazard, LOW = >=40°F Normal)
+#define MCP_PIN_PUMP_OVERCURRENT     4    // GPA4 (Pin 25): Overcurrent Sensor (LOW = Overload Trip, HIGH = Normal)
+#define MCP_PIN_PUMP_UNDERCURRENT    5    // GPA5 (Pin 26): Undercurrent Sensor (LOW = Dry Run / Cavitation Trip, HIGH = Normal)
+#define MCP_PIN_SPARE_IN1            6    // GPA6 (Pin 27): Spare Auxiliary Field Input 1
+#define MCP_PIN_SPARE_IN2            7    // GPA7 (Pin 28): Spare Auxiliary Field Input 2
 
-// Environmental 1-Wire & Protection Sensor Inputs
-#define PIN_DHT11_DATA          43   // Shared Digital Pin or Dedicated Sensor Header Pin for DHT11 Temp & Humidity
-#define PIN_PUMP_OVERCURRENT    19   // Header / Expander Pin: Overcurrent switch (LOW = Overload/Jam fault, HIGH = Normal)
-#define PIN_PUMP_UNDERCURRENT   20   // Header / Expander Pin: Undercurrent switch (LOW = Dry run/loss of prime, HIGH = Normal)
+// MCP23017 Port B: Relay & Actuator Outputs (Active HIGH)
+#define MCP_PIN_RELAY_LINE_VALVE     0    // GPB0 (Pin 1): Line Valve (NC) & Fill Pipe Drain (NO) Shared Relay
+#define MCP_PIN_RELAY_PUMP           1    // GPB1 (Pin 2): Booster Water Pump Relay
+#define MCP_PIN_RELAY_ALARM          2    // GPB2 (Pin 3): Tank Empty / General Siren Relay
+#define MCP_PIN_RELAY_LOW_TEMP_ALARM 3    // GPB3 (Pin 4): Pumphouse Interior Low Temp Alarm Relay (<55°F)
+#define MCP_PIN_HEXAPOD_MOUTH        4    // GPB4 (Pin 5): Hexapod Physical Mouth Actuator / LED Output
+#define MCP_PIN_HEXAPOD_EYES         5    // GPB5 (Pin 6): Hexapod Ocular LED Eyes Output
+#define MCP_PIN_SPARE_OUT1           6    // GPB6 (Pin 7): Spare Auxiliary Output 1
+#define MCP_PIN_SPARE_OUT2           7    // GPB7 (Pin 8): Spare Auxiliary Output 2
+
+// Fallback Direct GPIO Pin Mappings (used if MCP23017 is bypassed/in simulator)
+#define PIN_RELAY_LINE_VALVE         15   // Fallback Line Valve Relay
+#define PIN_RELAY_PUMP               16   // Fallback Water Pump Relay
+#define PIN_RELAY_ALARM              19   // Fallback Tank Empty Alarm Relay / Buzzer
+#define PIN_RELAY_LOW_TEMP_ALARM     13   // Fallback Pumphouse Low Temp Alarm Relay
+#define PIN_FLOAT_TANK_EMPTY         20   // Fallback Tank Empty Float
+#define PIN_FLOAT_TANK_LOW           43   // Fallback Tank Low Float
+#define PIN_FLOAT_TANK_HIGH          44   // Fallback Tank High Float
+#define PIN_FREEZE_SENSOR            6    // Fallback Freeze Sensor
+#define PIN_PUMP_OVERCURRENT         19   // Fallback Overcurrent Sensor
+#define PIN_PUMP_UNDERCURRENT        20   // Fallback Undercurrent Sensor
+#define PIN_DHT11_DATA               43   // DHT11 Data Pin
 
 // Onboard Waveshare I2C Bus (Touch GT911 + CH422G I/O Expander)
 #define PIN_I2C_SDA             8    // GT911 Touch & CH422G SDA

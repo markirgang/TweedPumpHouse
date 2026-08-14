@@ -1,5 +1,6 @@
 #include "controller.h"
 #include <ArduinoJson.h>
+#include <Wire.h>
 
 WaterSystemController systemController;
 
@@ -10,7 +11,10 @@ WaterSystemController::WaterSystemController()
       _lastTelemetryBroadcast(0),
       _lineValveOpenedTime(0),
       _prevTankEmptyState(false),
-      _prevPumpRoomLowTempState(false)
+      _prevPumpRoomLowTempState(false),
+      _mcpDetected(false),
+      _mcpAddress(MCP23017_DEFAULT_ADDR),
+      _mcpOutputLatchB(0x00)
 {
     // Initialize default telemetry state
     _telemetry.tankEmpty = false;
@@ -69,8 +73,69 @@ WaterSystemController::WaterSystemController()
     _hexapodMouthOffTime = 0;
 }
 
+void WaterSystemController::mcpWriteRegister(uint8_t addr, uint8_t reg, uint8_t val) {
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    Wire.write(val);
+    Wire.endTransmission();
+}
+
+uint8_t WaterSystemController::mcpReadRegister(uint8_t addr, uint8_t reg) {
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    if (Wire.endTransmission() != 0) {
+        return 0xFF;
+    }
+    Wire.requestFrom(addr, (uint8_t)1);
+    if (Wire.available()) {
+        return Wire.read();
+    }
+    return 0xFF;
+}
+
+bool WaterSystemController::initMCP23017() {
+    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000);
+
+    // Scan for MCP23017 expansion module (standard addresses 0x20 to 0x27)
+    _mcpDetected = false;
+    for (uint8_t addr = 0x20; addr <= 0x27; addr++) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            _mcpAddress = addr;
+            _mcpDetected = true;
+            break;
+        }
+    }
+
+    if (_mcpDetected) {
+        Serial.printf("[MCP23017] Detected 16-bit I/O Expander module at I2C address 0x%02X\n", _mcpAddress);
+        
+        // 1. Port A Direction: All 8 pins as INPUTS (0xFF)
+        mcpWriteRegister(_mcpAddress, MCP23017_IODIRA, 0xFF);
+
+        // 2. Port A Pull-ups: Enable 100k internal pull-up resistors on all Port A inputs (0xFF)
+        mcpWriteRegister(_mcpAddress, MCP23017_GPPUA, 0xFF);
+
+        // 3. Port B Direction: All 8 pins as OUTPUTS (0x00) for Relays and Actuators
+        mcpWriteRegister(_mcpAddress, MCP23017_IODIRB, 0x00);
+
+        // 4. Port B Outputs: Default all relays OFF (0x00) except Hexapod Eyes ON (Bit 5 = 0x20)
+        _mcpOutputLatchB = (1 << MCP_PIN_HEXAPOD_EYES);
+        mcpWriteRegister(_mcpAddress, MCP23017_OLATB, _mcpOutputLatchB);
+
+        Serial.println("[MCP23017] Successfully configured Port A (Inputs with Pullup) and Port B (Relay Outputs)");
+        return true;
+    } else {
+        Serial.println("[MCP23017] Note: No MCP23017 expander detected on I2C bus; falling back to direct GPIO / simulation mode");
+        return false;
+    }
+}
+
 void WaterSystemController::begin() {
-    // Configure Relay Actuator Output Pins
+    // 1. Initialize MCP23017 I/O Expander Module on I2C (GPIO 8 SDA, GPIO 9 SCL)
+    initMCP23017();
+
+    // 2. Configure Fallback Relay Actuator Output Pins (Active HIGH)
     pinMode(PIN_RELAY_LINE_VALVE, OUTPUT);
     pinMode(PIN_RELAY_PUMP, OUTPUT);
     pinMode(PIN_RELAY_ALARM, OUTPUT);
@@ -81,26 +146,26 @@ void WaterSystemController::begin() {
     digitalWrite(PIN_RELAY_ALARM, LOW);
     digitalWrite(PIN_RELAY_LOW_TEMP_ALARM, LOW);
 
-    // Configure Hexapod Physical Mouth & Eyes Actuator / LED Output Pins
+    // 3. Configure Fallback Hexapod Physical Mouth & Eyes Actuator / LED Output Pins
     pinMode(PIN_HEXAPOD_MOUTH, OUTPUT);
     pinMode(PIN_HEXAPOD_EYES, OUTPUT);
     digitalWrite(PIN_HEXAPOD_MOUTH, LOW);
     digitalWrite(PIN_HEXAPOD_EYES, HIGH); // Default eyes illuminated
 
-    // Configure Float Switch and Freeze Sensor Input Pins with Pull-Up
+    // 4. Configure Fallback Float Switch and Freeze Sensor Input Pins with Pull-Up
     pinMode(PIN_FLOAT_TANK_EMPTY, INPUT_PULLUP);
     pinMode(PIN_FLOAT_TANK_LOW, INPUT_PULLUP);
     pinMode(PIN_FLOAT_TANK_HIGH, INPUT_PULLUP);
     pinMode(PIN_FREEZE_SENSOR, INPUT_PULLUP);
 
-    // Configure Pump Current Protection Sensors (CON1 Header)
+    // 5. Configure Fallback Pump Current Protection Sensors (CON1 Header)
     pinMode(PIN_PUMP_OVERCURRENT, INPUT);
     pinMode(PIN_PUMP_UNDERCURRENT, INPUT);
 
-    // Start DHT11 Sensor
+    // 6. Start DHT11 Sensor
     _dht.begin();
 
-    // Initial sensor read
+    // 7. Initial sensor read
     readSensors();
 }
 
@@ -108,20 +173,39 @@ void WaterSystemController::readSensors() {
     unsigned long now = millis();
 
     // Debounced Reading for Float Switches, Freeze Sensor & Current Sensors
-    // Hardware Logic:
-    // - Tank Low Switch (GPIO 43):    LOW = Adequate (Auto OK), HIGH = Demand Water (Fill Demand)
-    // - Tank High Switch (GPIO 44):   LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed)
-    // - Freeze Sensor Switch (GPIO 6): HIGH = <40°F (Freeze Hazard / Pipe Drain), LOW = >=40°F (Warm / Normal Top-Off)
-    // - Tank Empty Switch (GPIO 20):  LOW = Critical Empty (ALARM), HIGH = Adequate (Normal OK)
-    // - Overcurrent Switch (GPIO 19): LOW = Overload fault, HIGH = Normal
-    // - Undercurrent Switch (GPIO 20):LOW = Dry-run fault, HIGH = Normal
+    // Field Logic:
+    // - Tank Low Switch:    LOW = Adequate (Auto OK), HIGH = Demand Water (Fill Demand)
+    // - Tank High Switch:   LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed)
+    // - Freeze Sensor:      HIGH = <40°F (Freeze Hazard / Pipe Drain), LOW = >=40°F (Warm / Normal Top-Off)
+    // - Tank Empty Switch:  LOW = Critical Empty (ALARM), HIGH = Adequate (Normal OK)
+    // - Overcurrent Switch: LOW = Overload fault, HIGH = Normal
+    // - Undercurrent Switch:LOW = Dry-run fault, HIGH = Normal
     
-    bool rawEmpty = (digitalRead(PIN_FLOAT_TANK_EMPTY) == LOW);  // LOW = Critical Empty (ALARM), HIGH = Adequate (Normal)
-    bool rawLow = (digitalRead(PIN_FLOAT_TANK_LOW) == HIGH);     // HIGH = Demand Water, LOW = Adequate
-    bool rawHigh = (digitalRead(PIN_FLOAT_TANK_HIGH) == HIGH);   // HIGH = Below Full (filling allowed), LOW = Tank Full (Shutoff Stop)
-    bool rawFreeze = (digitalRead(PIN_FREEZE_SENSOR) == HIGH);   // HIGH = <40°F freeze hazard, LOW = >=40°F normal
-    bool rawOvercurrent = (digitalRead(PIN_PUMP_OVERCURRENT) == LOW);   // LOW = Overcurrent fault
-    bool rawUndercurrent = (digitalRead(PIN_PUMP_UNDERCURRENT) == LOW); // LOW = Undercurrent / Dry-run fault
+    bool rawEmpty;
+    bool rawLow;
+    bool rawHigh;
+    bool rawFreeze;
+    bool rawOvercurrent;
+    bool rawUndercurrent;
+
+    if (_mcpDetected) {
+        // Read Port A (all 8 input bits) directly from MCP23017
+        uint8_t portA = mcpReadRegister(_mcpAddress, MCP23017_GPIOA);
+        rawHigh = ((portA & (1 << MCP_PIN_FLOAT_TANK_HIGH)) != 0);
+        rawLow = ((portA & (1 << MCP_PIN_FLOAT_TANK_LOW)) != 0);
+        rawEmpty = ((portA & (1 << MCP_PIN_FLOAT_TANK_EMPTY)) == 0); // Active LOW = Empty Alarm
+        rawFreeze = ((portA & (1 << MCP_PIN_FREEZE_SENSOR)) != 0);   // HIGH = <40F
+        rawOvercurrent = ((portA & (1 << MCP_PIN_PUMP_OVERCURRENT)) == 0); // Active LOW = Fault
+        rawUndercurrent = ((portA & (1 << MCP_PIN_PUMP_UNDERCURRENT)) == 0); // Active LOW = Fault
+    } else {
+        // Fallback to direct GPIO pin reads
+        rawEmpty = (digitalRead(PIN_FLOAT_TANK_EMPTY) == LOW);
+        rawLow = (digitalRead(PIN_FLOAT_TANK_LOW) == HIGH);
+        rawHigh = (digitalRead(PIN_FLOAT_TANK_HIGH) == HIGH);
+        rawFreeze = (digitalRead(PIN_FREEZE_SENSOR) == HIGH);
+        rawOvercurrent = (digitalRead(PIN_PUMP_OVERCURRENT) == LOW);
+        rawUndercurrent = (digitalRead(PIN_PUMP_UNDERCURRENT) == LOW);
+    }
 
     if (now - _lastDebounceTime > SENSOR_DEBOUNCE_MS) {
         // Tank High: false = Floating (FULL), true = Dropped/Down
@@ -456,15 +540,33 @@ void WaterSystemController::executeStateMachine() {
 }
 
 void WaterSystemController::updateActuators() {
-    // Write physical pin outputs to relays (Active HIGH)
+    bool eyeState = _telemetry.hexapodEyes && !_hexapodIsBlinking;
+
+    // 1. Write outputs to MCP23017 16-Bit I/O Expander Port B
+    if (_mcpDetected) {
+        uint8_t outB = 0;
+        if (_telemetry.lineValve)         outB |= (1 << MCP_PIN_RELAY_LINE_VALVE);
+        if (_telemetry.pump)              outB |= (1 << MCP_PIN_RELAY_PUMP);
+        if (_telemetry.alarm)             outB |= (1 << MCP_PIN_RELAY_ALARM);
+        if (_telemetry.relayLowTempAlarm) outB |= (1 << MCP_PIN_RELAY_LOW_TEMP_ALARM);
+        if (_telemetry.hexapodMouth)      outB |= (1 << MCP_PIN_HEXAPOD_MOUTH);
+        if (eyeState)                     outB |= (1 << MCP_PIN_HEXAPOD_EYES);
+
+        if (outB != _mcpOutputLatchB) {
+            _mcpOutputLatchB = outB;
+            mcpWriteRegister(_mcpAddress, MCP23017_OLATB, _mcpOutputLatchB);
+        }
+    }
+
+    // 2. Write fallback physical pin outputs to relays (Active HIGH)
     digitalWrite(PIN_RELAY_LINE_VALVE, _telemetry.lineValve ? HIGH : LOW);
     digitalWrite(PIN_RELAY_PUMP, _telemetry.pump ? HIGH : LOW);
     digitalWrite(PIN_RELAY_ALARM, _telemetry.alarm ? HIGH : LOW);
     digitalWrite(PIN_RELAY_LOW_TEMP_ALARM, _telemetry.relayLowTempAlarm ? HIGH : LOW);
 
-    // Write physical pin outputs to Hexapod Mascot (Active HIGH)
+    // 3. Write fallback physical pin outputs to Hexapod Mascot (Active HIGH)
     digitalWrite(PIN_HEXAPOD_MOUTH, _telemetry.hexapodMouth ? HIGH : LOW);
-    digitalWrite(PIN_HEXAPOD_EYES, _telemetry.hexapodEyes ? HIGH : LOW);
+    digitalWrite(PIN_HEXAPOD_EYES, eyeState ? HIGH : LOW);
 }
 
 void WaterSystemController::update() {
@@ -477,12 +579,10 @@ void WaterSystemController::update() {
         if (!_hexapodIsBlinking && (now - _hexapodLastBlinkTime >= _hexapodNextBlinkInterval)) {
             _hexapodIsBlinking = true;
             _hexapodLastBlinkTime = now;
-            digitalWrite(PIN_HEXAPOD_EYES, LOW); // Blink eyes OFF briefly (150ms)
         } else if (_hexapodIsBlinking && (now - _hexapodLastBlinkTime >= HEXAPOD_BLINK_DURATION_MS)) {
             _hexapodIsBlinking = false;
             _hexapodLastBlinkTime = now;
             _hexapodNextBlinkInterval = HEXAPOD_BLINK_INTERVAL_MIN_MS + (now % (HEXAPOD_BLINK_INTERVAL_MAX_MS - HEXAPOD_BLINK_INTERVAL_MIN_MS));
-            digitalWrite(PIN_HEXAPOD_EYES, HIGH); // Restore eyes to ON
         }
     }
 
@@ -618,6 +718,8 @@ String WaterSystemController::getTelemetryJson() const {
     doc["alarm"] = _telemetry.alarm;
     doc["relayLowTempAlarm"] = _telemetry.relayLowTempAlarm;
     doc["alarmSilenced"] = _telemetry.alarmSilenced;
+    doc["mcpDetected"] = _mcpDetected;
+    doc["mcpAddress"] = _mcpAddress;
 
     // Faults, Warnings & Overrides
     doc["pumpOvercurrentTrip"] = _telemetry.pumpOvercurrentTrip;

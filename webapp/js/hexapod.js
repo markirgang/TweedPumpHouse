@@ -1040,19 +1040,33 @@ class HexapodAssistant {
       this.speak("Booster water pump engaged. Pumping municipal water uphill to Tweed Boulevard.", { mood: 'pumping' });
     }
 
-    // 6. Tank High / Full Shutoff
+    // 6. Tank High / Full Shutoff (Floating -> Full)
     else if (!t.tankHigh && prev.tankHigh === true) {
-      this.speak("Tweed holding tank reached 100% full capacity. Shutting off pump and line valve.", { mood: 'happy' });
+      this.speak("Tweed holding tank reached 100% full capacity. Shutting off pump and closing line valve.", { mood: 'happy' });
+    }
+
+    // 6B. Tank High Float Dropped Back Down (Not Floating -> Below Full)
+    else if (t.tankHigh && prev.tankHigh === false) {
+      if (t.freezeSensor) {
+        this.speak("Tweed holding tank high level float switch dropped back down. Outside freeze sensor is active below 40 degrees: keeping Line Valve CLOSED and fill pipe DRAINED to prevent freezing until water reaches Low Float.", { mood: 'freeze', priority: true });
+      } else {
+        this.speak("Tweed holding tank high level float switch dropped back down. Outside temperature is above 40 degrees: opening Line Valve and closing Drain so municipal line pressure can naturally top off the tank without starting the booster pump.", { mood: 'normal' });
+      }
     }
 
     // 7. Tank Low / Fill Demand Started
     else if (t.tankLow && prev.tankLow === false && !t.pump) {
-      this.speak("Water level low in Tweed tank. Opening line valve with 5-second priming delay.", { mood: 'normal' });
+      this.speak("Water level low in Tweed tank. Opening line valve with 5-second priming delay before booster pump start.", { mood: 'normal' });
     }
 
-    // 8. Freeze Hazard Active (<40°F)
+    // 8. Freeze Hazard Activated (<40°F)
     else if (t.freezeSensor && prev.freezeSensor === false) {
-      this.speak("ALERT: Outside freeze hazard detected (<40°F). Drain valve open to prevent pipe freezing.", { mood: 'freeze' });
+      this.speak("ALERT: Outside freeze hazard detected below 40 degrees! Closing Line Valve and opening Drain to empty the exposed fill pipe to the sump.", { mood: 'freeze', priority: true });
+    }
+
+    // 8B. Freeze Hazard Cleared (>=40°F)
+    else if (!t.freezeSensor && prev.freezeSensor === true) {
+      this.speak("Outside freeze condition cleared: temperature is above 40 degrees. Opening Line Valve and closing Drain to resume natural top-off filling.", { mood: 'happy' });
     }
 
     // 9. Cooldown Initiated

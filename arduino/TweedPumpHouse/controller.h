@@ -135,9 +135,19 @@ private:
     bool _prevTankEmptyState;
     bool _prevPumpRoomLowTempState;
 
+    // MCP23017 16-Bit I2C I/O Expander Driver
+    bool _mcpDetected;
+    uint8_t _mcpAddress;
+    uint8_t _mcpOutputLatchB;
+    bool initMCP23017();
+    void mcpWriteRegister(uint8_t addr, uint8_t reg, uint8_t val);
+    uint8_t mcpReadRegister(uint8_t addr, uint8_t reg);
+
     void readSensors();
     void executeStateMachine();
     void updateActuators();
+public:
+    bool isMcpDetected() const { return _mcpDetected; }
 };
 
 extern WaterSystemController systemController;

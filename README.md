@@ -37,26 +37,45 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 
 ---
 
-## 2. Hardware Pinout & Wiring Table (Waveshare ESP32-S3-Touch-LCD-7)
+## 2. Hardware Architecture & MCP23017 16-Bit I/O Expander Wiring Table
 
-| Device / Signal | Header & Pin | ESP32-S3 GPIO | Type | Logic / Behavior |
+Because all direct ESP32-S3 GPIO pins are dedicated to driving the 800x480 parallel RGB LCD bus and onboard touch controller, all external field inputs and relay actuators connect via the **MCP23017 16-Bit I/O Expander Module** over the shared I2C bus (`GPIO 8` SDA, `GPIO 9` SCL, Address `0x20`).
+
+### A. MCP23017 Port A — Field Sensor Inputs (Internal 100k Pull-Ups Enabled)
+
+| Signal / Field Sensor | MCP23017 Pin | Port & Bit | Logic / Active Level | Behavior Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Shared Valve Relay (Line & Drain)** | RS485 Header (P5) Pin 1 | `GPIO 15` | Output (Relay) | HIGH = Line Valve Open & Drain Valve Closed (Energized)<br>LOW = Line Valve Closed & Drain Valve Open (Draining Pipe) |
-| **Water Pump Relay** | RS485 Header (P5) Pin 2 | `GPIO 16` | Output (Relay) | HIGH = Pump Running (Energized), LOW = Off |
-| **Alarm Buzzer / Siren Relay** | CAN Header (P3) Pin 1 | `GPIO 19` | Output (Relay) | HIGH = Sounding Alarm, LOW = Muted/Off |
-| **Pumphouse Low Temp Alarm Relay** | Auxiliary Header Pin | `GPIO 13` | Output (Relay) | HIGH = Pump Room Temp < 55°F (Alarm Output Active), LOW = Normal |
-| **Tank Empty Float** | CAN Header (P3) Pin 2 | `GPIO 20` | Input (Pullup) | LOW = Critical Empty (ALARM), HIGH = Adequate (Normal) |
-| **Tank Low Float** | UART2 Header (P1) Pin 3 | `GPIO 43` | Input (Pullup) | HIGH = Demand Water (Auto Pump), LOW = Adequate (Normal) |
-| **Tank High Float** | UART2 Header (P1) Pin 2 | `GPIO 44` | Input (Pullup) | LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed) |
-| **Freeze Sensor (<40°F)**| Sensor AD Header (P2) Pin 3 | `GPIO 6` | Input (Pullup) | HIGH = < 40°F (Freeze Hazard / Pipe Drain), LOW = >= 40°F (Normal / Warm) |
-| **DHT11 Data Pin** | Shared Header Pin | `GPIO 43` / Expander | Digital 1-Wire | Reads Pump Room Temp & Humidity |
-| **Pump Overcurrent Sensor**| Header / I2C Expander | Configurable | Input | LOW = Overcurrent Trip (> Limit / Jammed Motor), HIGH = Normal |
-| **Pump Undercurrent Sensor**| Header / I2C Expander | Configurable | Input | LOW = Dry Run Trip (Loss of Prime / Cavitation), HIGH = Normal |
-| **Hexapod Mouth Actuator / LED** | Expansion Header Pin | `GPIO 11` | Output (Digital) | HIGH = Mouth Open / Active Lip-Sync, LOW = Closed |
-| **Hexapod Ocular LED Eyes** | Expansion Header Pin | `GPIO 12` | Output (Digital) | HIGH = Eyes ON / Illuminated, LOW = Blinking Off (150ms) |
-| **7.0" 800x480 RGB LCD** | Integrated ST7262 | 20 Dedicated Pins | Parallel RGB | Data: GPIO 14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40<br>Sync: GPIO 5 (DE), 3 (VSYNC), 46 (HSYNC), 7 (PCLK) |
-| **GT911 Capacitive Touch** | Integrated I2C | `GPIO 8` (SDA), `GPIO 9` (SCL) | I2C Bus | Address `0x5D`, Interrupt `GPIO 4` |
-| **CH422G I/O Expander** | Integrated I2C | `GPIO 8` (SDA), `GPIO 9` (SCL) | I2C Bus | Address `0x24` / `0x38` (Controls Backlight, Resets) |
+| **Tank High Float Switch** | Pin 21 | `GPA0` (Bit 0) | LOW = Tank Full (Shutoff Stop)<br>HIGH = Below Full (Refill Allowed) | Highest float in holding tank |
+| **Tank Low Float Switch** | Pin 22 | `GPA1` (Bit 1) | HIGH = Water Level Low (Demand Water)<br>LOW = Water Level Adequate | Triggers 5s Line Valve priming & Booster Pump |
+| **Tank Empty Float Switch**| Pin 23 | `GPA2` (Bit 2) | LOW = Critically Empty (ALARM SIREN)<br>HIGH = Water Level OK | Lowest emergency float switch |
+| **Freeze Sensor Switch** | Pin 24 | `GPA3` (Bit 3) | HIGH = < 40°F (Freeze Hazard / Pipe Drain)<br>LOW = >= 40°F (Normal / Warm Top-Off) | Outdoor temperature thermostat |
+| **Pump Overcurrent Sensor**| Pin 25 | `GPA4` (Bit 4) | LOW = Overcurrent Trip (Motor Jam / Overload)<br>HIGH = Normal Motor Load | Pump motor protection |
+| **Pump Undercurrent Sensor**| Pin 26 | `GPA5` (Bit 5) | LOW = Dry Run / Loss of Prime Trip<br>HIGH = Positive Suction Prime OK | Pump dry run cavitation protection |
+| **Spare Auxiliary Input 1** | Pin 27 | `GPA6` (Bit 6) | Input (Pullup) | Reserved for future expansion |
+| **Spare Auxiliary Input 2** | Pin 28 | `GPA7` (Bit 7) | Input (Pullup) | Reserved for future expansion |
+
+### B. MCP23017 Port B — Relay Actuators & Hexapod Outputs (Active HIGH)
+
+| Actuator / Output Device | MCP23017 Pin | Port & Bit | Active Level | Controlled Plumbing / Device |
+| :--- | :--- | :--- | :--- | :--- |
+| **Line Valve & Drain Shared Relay** | Pin 1 | `GPB0` (Bit 0) | HIGH = Energized<br>LOW = De-energized | HIGH = Line Valve OPEN & Fill Pipe Drain CLOSED<br>LOW = Line Valve CLOSED & Fill Pipe Drain OPEN (Draining Pipe) |
+| **Booster Water Pump Relay** | Pin 2 | `GPB1` (Bit 1) | HIGH = Pump Running<br>LOW = Pump Off | 25-Min Max Run / 2-Hour Cooldown Protection |
+| **Alarm Buzzer / Siren Relay** | Pin 3 | `GPB2` (Bit 2) | HIGH = Siren Active<br>LOW = Off / Silenced | Tank Empty, Overload Fault, or Room Low Temp |
+| **Pumphouse Low Temp Relay** | Pin 4 | `GPB3` (Bit 3) | HIGH = Active (<55°F)<br>LOW = Normal (>=55°F) | Pumphouse room ambient heating failure alarm |
+| **Hexapod Mouth Actuator** | Pin 5 | `GPB4` (Bit 4) | HIGH = Mouth Open<br>LOW = Mouth Closed | Cyber-Hexapod audio lip-sync mouth output |
+| **Hexapod Ocular LED Eyes** | Pin 6 | `GPB5` (Bit 5) | HIGH = Eyes Illuminated<br>LOW = Blinking Off (150ms) | Mascot eyes blinking automation |
+| **Spare Relay Output 1** | Pin 7 | `GPB6` (Bit 6) | Output | Reserved auxiliary relay |
+| **Spare Relay Output 2** | Pin 8 | `GPB7` (Bit 7) | Output | Reserved auxiliary relay |
+
+### C. Onboard Waveshare ESP32-S3 Dedicated Peripherals
+
+| Device | Interface | ESP32-S3 GPIO Pins | Description |
+| :--- | :--- | :--- | :--- |
+| **I2C Bus (MCP23017 + Touch + CH422G)** | Standard I2C | `GPIO 8` (SDA), `GPIO 9` (SCL) | Fast 400kHz shared system bus |
+| **GT911 Capacitive Touch** | I2C | `GPIO 8`, `GPIO 9`, `GPIO 4` (IRQ) | 5-point capacitive multi-touch |
+| **CH422G Expander** | I2C | `GPIO 8`, `GPIO 9` (Address `0x24`/`0x38`) | LCD backlight & peripheral reset |
+| **7.0" 800x480 RGB LCD** | Parallel RGB | 20 Dedicated Display Pins | ST7262 driver with PSRAM double buffer |
+| **DHT11 Temp & Humidity Sensor** | 1-Wire Digital | `GPIO 43` | Ambient Pumphouse Climate Monitoring |
 
 ---
 
