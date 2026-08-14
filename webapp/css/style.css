@@ -225,6 +225,12 @@ main.container {
   border-color: #fb7185;
 }
 
+.alarm-banner.banner-low-temp {
+  background: linear-gradient(90deg, #1e3a8a, #2563eb, #dc2626);
+  border: 2px solid #93c5fd;
+  box-shadow: 0 0 35px rgba(37, 99, 235, 0.5);
+}
+
 .freeze-banner.banner-undercurrent {
   background: linear-gradient(90deg, #78350f, #d97706);
   border-color: #fbbf24;

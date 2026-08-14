@@ -629,13 +629,19 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     // 7. DHT11 Room Climate & Siren Status (cy + 182)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
     _sprite.drawString("PUMP ROOM CLIMATE:", cx + 18, cy + 182);
-    char dhtStr[48];
+    char dhtStr[64];
     if (telemetry.dhtValid) {
-        snprintf(dhtStr, sizeof(dhtStr), "%.1f°F (%.1f°C)  |  %.0f%% RH", telemetry.temperatureF, telemetry.temperatureC, telemetry.humidity);
+        if (telemetry.pumpRoomLowTempAlarm) {
+            snprintf(dhtStr, sizeof(dhtStr), "%.1f°F (%.1f°C) [ALARM <55°F!] | %.0f%% RH", telemetry.temperatureF, telemetry.temperatureC, telemetry.humidity);
+            _sprite.setTextColor(TFT_RED, 0x2124);
+        } else {
+            snprintf(dhtStr, sizeof(dhtStr), "%.1f°F (%.1f°C)  |  %.0f%% RH", telemetry.temperatureF, telemetry.temperatureC, telemetry.humidity);
+            _sprite.setTextColor(TFT_WHITE, 0x2124);
+        }
     } else {
         snprintf(dhtStr, sizeof(dhtStr), "INITIALIZING SENSOR...");
+        _sprite.setTextColor(TFT_WHITE, 0x2124);
     }
-    _sprite.setTextColor(TFT_WHITE, 0x2124);
     _sprite.drawString(dhtStr, cx + 180, cy + 182);
 
     // 8. Alarm / Safety Status Banner (cy + 224, height 96)
@@ -646,7 +652,7 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         bannerBg = 0xFD20;
     } else if (telemetry.pumpCurrentFaultPending) {
         bannerBg = 0xFD20;
-    } else if (telemetry.alarm) {
+    } else if (telemetry.alarm || telemetry.pumpRoomLowTempAlarm || telemetry.tankEmpty) {
         bannerBg = TFT_RED;
     } else if (telemetry.alarmSilenced) {
         bannerBg = 0x7380;
@@ -672,11 +678,16 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         char warnStr[64];
         snprintf(warnStr, sizeof(warnStr), "Fault persisting: Pump shutdown and alarm trip in %02lu seconds...", telemetry.pumpCurrentFaultRemainingMs / 1000UL);
         _sprite.drawString(warnStr, cx + 22, cy + 262);
-    } else if (telemetry.alarm) {
+    } else if (telemetry.pumpRoomLowTempAlarm) {
+        _sprite.drawString("! CRITICAL: PUMP ROOM LOW TEMP (<55°F) ALARM !", cx + 26, cy + 246);
+        char tempMsg[80];
+        snprintf(tempMsg, sizeof(tempMsg), "Pump room temp dropped to %.1f°F (<55°F). Inspect room heater.", telemetry.temperatureF);
+        _sprite.drawString(tempMsg, cx + 26, cy + 270);
+    } else if (telemetry.alarm && telemetry.tankEmpty) {
         _sprite.drawString("! CRITICAL: TANK EMPTY SIREN SOUNDING !", cx + 26, cy + 246);
         _sprite.drawString("Tweed holding tank is empty. Tap SILENCE ALARM to mute buzzer.", cx + 26, cy + 270);
     } else if (telemetry.alarmSilenced) {
-        _sprite.drawString("TANK EMPTY - AUDIBLE ALARM MUTED BY USER", cx + 32, cy + 256);
+        _sprite.drawString("ALARM MUTED - AUDIBLE SIREN SILENCED BY USER", cx + 32, cy + 256);
     } else if (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN) {
         _sprite.drawString("PUMP DUTY CYCLE TIMEOUT: 2-HOUR COOLDOWN IN EFFECT", cx + 26, cy + 246);
         _sprite.drawString("Tap RESET PUMP / TIMEOUT below to override cooldown immediately.", cx + 26, cy + 270);
@@ -687,7 +698,7 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
 
 void DisplayGUI::drawControlButtons(const SystemTelemetry& telemetry) {
     // 1. Silence Alarm Button (X=16, W=180, H=62)
-    uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip || telemetry.pumpCurrentFaultPending) ? TFT_RED : 0x39E7;
+    uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip || telemetry.pumpCurrentFaultPending || telemetry.pumpRoomLowTempAlarm) ? TFT_RED : 0x39E7;
     _sprite.fillRoundRect(_btnSilenceAlarm.x, _btnSilenceAlarm.y, _btnSilenceAlarm.w, _btnSilenceAlarm.h, 8, silenceColor);
     _sprite.setTextColor(TFT_WHITE, silenceColor);
     _sprite.drawString("SILENCE ALARM", _btnSilenceAlarm.x + 36, _btnSilenceAlarm.y + 14);

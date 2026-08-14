@@ -11,9 +11,10 @@
 // peripheral headers on the board (RS485, CAN, UART2, Sensor AD, and I2C).
 
 // Actuator Output Pins (Relay modules, Active HIGH)
-#define PIN_RELAY_LINE_VALVE    15   // RS485 Header (P5 Pin 1): Line Valve Relay (HIGH = Valve Open)
-#define PIN_RELAY_PUMP          16   // RS485 Header (P5 Pin 2): Water Pump Relay (HIGH = Pump ON)
-#define PIN_RELAY_ALARM         19   // CAN Header (P3 Pin 1): Tank Empty Alarm Relay / Buzzer (HIGH = Active)
+#define PIN_RELAY_LINE_VALVE         15   // RS485 Header (P5 Pin 1): Line Valve Relay (HIGH = Valve Open)
+#define PIN_RELAY_PUMP               16   // RS485 Header (P5 Pin 2): Water Pump Relay (HIGH = Pump ON)
+#define PIN_RELAY_ALARM              19   // CAN Header (P3 Pin 1): Tank Empty Alarm Relay / Buzzer (HIGH = Active)
+#define PIN_RELAY_LOW_TEMP_ALARM     13   // Auxiliary Output Pin: Pumphouse Interior Low Temp Alarm Relay (HIGH = Active Alarm)
 
 // Float Sensor & Environmental Inputs
 // Confirmed Hardware Logic:
@@ -50,6 +51,9 @@
 #define SENSOR_DEBOUNCE_MS      250  // Filter out water sloshing/ripples in holding tank
 #define DHT_READ_INTERVAL_MS    3000 // Read ambient temperature/humidity every 3s
 #define TELEMETRY_BROADCAST_MS  1000 // Broadcast system status every 1s
+
+// Environmental Alarm Thresholds
+#define PUMP_ROOM_LOW_TEMP_ALARM_THRESHOLD_F 55.0f // Alarm triggered if pump room temp drops below 55°F
 
 // =========================================================================
 // TIMING CONSTANTS (Water Pump Duty Cycle & Safety Protection)

@@ -1060,6 +1060,11 @@ class HexapodAssistant {
       this.speak("Pump 25-minute duty cycle reached. 2-hour motor cooldown initiated.", { mood: 'normal' });
     }
 
+    // 10. Pump Room Low Temp Alarm (<55°F)
+    else if (t.pumpRoomLowTempAlarm && prev.pumpRoomLowTempAlarm === false) {
+      this.speak(`CRITICAL ALARM! Pump room temperature dropped to ${(t.temperatureF !== undefined ? t.temperatureF : 50).toFixed(0)} degrees, below the 55 degree safety threshold! Inspect pump house heating immediately!`, { mood: 'alert', priority: true });
+    }
+
     // Save previous state for transition detection
     this.prevState = {
       pump: t.pump,
@@ -1072,6 +1077,7 @@ class HexapodAssistant {
       overcurrentTrip: t.pumpOvercurrentTrip,
       undercurrentTrip: t.pumpUndercurrentTrip,
       pumpCurrentFaultPending: t.pumpCurrentFaultPending,
+      pumpRoomLowTempAlarm: t.pumpRoomLowTempAlarm,
       alarm: t.alarm
     };
   }

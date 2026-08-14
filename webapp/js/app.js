@@ -362,6 +362,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // 1D. Low Pump Room Temperature Alarm (<55°F) Banner
+    const lowTempBanner = document.getElementById('lowTempAlarmBanner');
+    if (lowTempBanner) {
+      if (t.pumpRoomLowTempAlarm && t.alarm && !t.alarmSilenced) {
+        lowTempBanner.classList.add('active');
+        const lowTempDisplay = document.getElementById('lowTempDisplay');
+        if (lowTempDisplay) {
+          lowTempDisplay.innerText = `${(t.temperatureF !== undefined ? t.temperatureF : 50.0).toFixed(1)}°F`;
+        }
+      } else {
+        lowTempBanner.classList.remove('active');
+      }
+    }
+
     // 2. Freeze Warning Banner
     const freezeBanner = document.getElementById('freezeBanner');
     if (freezeBanner) {
@@ -487,6 +501,17 @@ document.addEventListener('DOMContentLoaded', () => {
       pumpVal.className = 'metric-val val-grey';
     }
 
+    const lowTempRelayVal = document.getElementById('valLowTempRelay');
+    if (lowTempRelayVal) {
+      if (t.relayLowTempAlarm || t.pumpRoomLowTempAlarm) {
+        lowTempRelayVal.innerText = 'ACTIVE (ALARM ON)';
+        lowTempRelayVal.className = 'metric-val val-red';
+      } else {
+        lowTempRelayVal.innerText = 'OFF (STANDBY)';
+        lowTempRelayVal.className = 'metric-val val-grey';
+      }
+    }
+
     // 5. Pump Run Time & Timed-Out Duration
     const timerLabel = document.getElementById('pumpTimerLabel');
     const timerDigits = document.getElementById('pumpTimerDigits');
@@ -609,7 +634,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 7. Climate
-    document.getElementById('valTempF').innerText = (t.temperatureF || 68.0).toFixed(1) + '°F';
+    const tempElem = document.getElementById('valTempF');
+    if (tempElem) {
+      const tempF = (t.temperatureF !== undefined ? t.temperatureF : 68.0);
+      tempElem.innerText = tempF.toFixed(1) + '°F';
+      if (t.pumpRoomLowTempAlarm || tempF < 55.0) {
+        tempElem.className = 'metric-val val-red';
+      } else {
+        tempElem.className = 'metric-val';
+      }
+    }
     document.getElementById('valHumidity').innerText = Math.round(t.humidity || 50) + '%';
 
     // 8. Override Buttons Active State
@@ -924,6 +958,33 @@ document.addEventListener('DOMContentLoaded', () => {
     btnUcFault.addEventListener('click', () => {
       simulator.state.pumpUndercurrent = true;
       setSimBtnActive('simUndercurrentGroup', 'simUndercurrentFault');
+    });
+  }
+
+  // Pump Room Temperature (DHT11) Simulation
+  const btnTempNorm = document.getElementById('simTempNorm');
+  const btnTempLow = document.getElementById('simTempLow');
+  const btnTempCold = document.getElementById('simTempCold');
+  if (btnTempNorm && btnTempLow && btnTempCold) {
+    btnTempNorm.addEventListener('click', () => {
+      simulator.state.temperatureF = 68.0;
+      simulator.state.temperatureC = 20.0;
+      simulator.state.pumpRoomLowTempAlarm = false;
+      setSimBtnActive('simTempGroup', 'simTempNorm');
+    });
+    btnTempLow.addEventListener('click', () => {
+      simulator.state.temperatureF = 50.0;
+      simulator.state.temperatureC = 10.0;
+      simulator.state.pumpRoomLowTempAlarm = true;
+      simulator.state.alarmSilenced = false; // Trigger audible siren
+      setSimBtnActive('simTempGroup', 'simTempLow');
+    });
+    btnTempCold.addEventListener('click', () => {
+      simulator.state.temperatureF = 35.0;
+      simulator.state.temperatureC = 1.67;
+      simulator.state.pumpRoomLowTempAlarm = true;
+      simulator.state.alarmSilenced = false; // Trigger audible siren
+      setSimBtnActive('simTempGroup', 'simTempCold');
     });
   }
 

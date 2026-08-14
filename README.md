@@ -43,7 +43,8 @@ The system controls the water supply pumped uphill from the **Municipal Water Su
 | :--- | :--- | :--- | :--- | :--- |
 | **Shared Valve Relay (Line & Drain)** | RS485 Header (P5) Pin 1 | `GPIO 15` | Output (Relay) | HIGH = Line Valve Open & Drain Valve Closed (Energized)<br>LOW = Line Valve Closed & Drain Valve Open (Draining Pipe) |
 | **Water Pump Relay** | RS485 Header (P5) Pin 2 | `GPIO 16` | Output (Relay) | HIGH = Pump Running (Energized), LOW = Off |
-| **Alarm Buzzer / Relay** | CAN Header (P3) Pin 1 | `GPIO 19` | Output (Relay) | HIGH = Sounding Alarm, LOW = Muted/Off |
+| **Alarm Buzzer / Siren Relay** | CAN Header (P3) Pin 1 | `GPIO 19` | Output (Relay) | HIGH = Sounding Alarm, LOW = Muted/Off |
+| **Pumphouse Low Temp Alarm Relay** | Auxiliary Header Pin | `GPIO 13` | Output (Relay) | HIGH = Pump Room Temp < 55°F (Alarm Output Active), LOW = Normal |
 | **Tank Empty Float** | CAN Header (P3) Pin 2 | `GPIO 20` | Input (Pullup) | LOW = Critical Empty (ALARM), HIGH = Adequate (Normal) |
 | **Tank Low Float** | UART2 Header (P1) Pin 3 | `GPIO 43` | Input (Pullup) | HIGH = Demand Water (Auto Pump), LOW = Adequate (Normal) |
 | **Tank High Float** | UART2 Header (P1) Pin 2 | `GPIO 44` | Input (Pullup) | LOW = Tank Full (Shutoff Stop), HIGH = Below Full (Filling Allowed) |
@@ -101,9 +102,15 @@ The controller includes dedicated outputs and a WebSocket bridge for an animated
 * **Shared Relay Architecture**: Both the **Line Valve (Normally Closed)** and the **Fill Pipe Drain Valve (Normally Open)** share a single control relay (`GPIO 15`).
   - **Relay ON / Energized**: Line Valve is OPEN, Drain Valve is CLOSED (water allowed to fill holding tank).
   - **Relay OFF / De-energized**: Line Valve is CLOSED, Drain Valve is OPEN (fill pipe drains into pump house sump).
-* **Freeze Sensor ON (< 40°F)**: There is danger that water inside the exposed fill pipe between the Pump Room and Tweed Blvd could freeze and burst. When the water level is between High and Low, the **Shared Relay remains OFF** (Line Valve Closed, Drain Valve Open, pipe drained).
-* **Active Fill Exception**: Even if the Freeze Sensor is ON, when the water level drops to **Tank Low**, the system engages the Shared Relay and Pump to actively fill the tank until **Tank High** is reached, at which point the relay immediately turns OFF and the pipe drains completely.
-* **Freeze Sensor OFF (>= 40°F / Warm)**: When the water level drops below Tank High, the **Shared Relay energizes** so municipal water pressure can naturally top off the tank without engaging the pump.
+* **High Water Float Drop (Normal Mode Top-Off)**: When the "High Water" float switch transitions from floating (FULL) to not floating (water level drops below top switch):
+  - **Freeze Sensor OFF ($\ge 40^\circ\text{F}$ Warm)**: The Shared Relay **energizes ON** $\rightarrow$ **Line Valve OPENS** and **Fill Pipe Drain CLOSES**, allowing municipal line pressure to naturally top off the tank without engaging the pump.
+  - **Freeze Sensor ON ($< 40^\circ\text{F}$ Freeze Hazard)**: The Shared Relay **remains OFF** $\rightarrow$ **Line Valve stays CLOSED** and **Fill Pipe Drain stays OPEN** (pipe drained to sump) to prevent exposed fill pipes from freezing and bursting.
+* **Active Fill Exception**: Even when the Freeze Sensor is ON, once water level drops to **Tank Low**, the system engages the Shared Relay and Booster Pump to actively fill the tank until **Tank High** is reached, at which point the relay immediately de-energizes and the pipe drains completely.
+
+### F. Pump Room Low Temperature Alarm (<55°F)
+* **Low Temperature Trigger**: If ambient pump room temperature measured by the DHT11 sensor drops below **$55^\circ\text{F}$**, the ESP32 activates the **Audible Alarm Siren Relay (`GPIO 19`)** to alert operators to potential pump house heating failure and freeze risks to the indoor booster pump and piping.
+* **Alert Displays**: A critical low-temperature banner is displayed across the Waveshare 7" LCD, the Web App, and announced by the Hexapod Mascot audio companion.
+* **Silence & Auto-Rearm**: Pressing **Silence Alarm** mutes the siren. If the room warms back up $\ge 55^\circ\text{F}$ and subsequently drops below $55^\circ\text{F}$ again, the alarm automatically re-arms.
 
 ---
 

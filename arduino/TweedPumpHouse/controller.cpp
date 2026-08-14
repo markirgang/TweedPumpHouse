@@ -9,7 +9,8 @@ WaterSystemController::WaterSystemController()
       _lastDhtReadTime(0),
       _lastTelemetryBroadcast(0),
       _lineValveOpenedTime(0),
-      _prevTankEmptyState(false)
+      _prevTankEmptyState(false),
+      _prevPumpRoomLowTempState(false)
 {
     // Initialize default telemetry state
     _telemetry.tankEmpty = false;
@@ -22,6 +23,7 @@ WaterSystemController::WaterSystemController()
     _telemetry.lineValve = false;
     _telemetry.pump = false;
     _telemetry.alarm = false;
+    _telemetry.relayLowTempAlarm = false;
 
     _telemetry.alarmSilenced = false;
     _telemetry.pumpOvercurrentTrip = false;
@@ -54,7 +56,7 @@ WaterSystemController::WaterSystemController()
     _telemetry.temperatureF = 68.0f;
     _telemetry.humidity = 50.0f;
     _telemetry.dhtValid = false;
-
+    _telemetry.pumpRoomLowTempAlarm = false;
     _telemetry.isFillCycleActive = false;
 
     // Hexapod Default State
@@ -72,10 +74,12 @@ void WaterSystemController::begin() {
     pinMode(PIN_RELAY_LINE_VALVE, OUTPUT);
     pinMode(PIN_RELAY_PUMP, OUTPUT);
     pinMode(PIN_RELAY_ALARM, OUTPUT);
+    pinMode(PIN_RELAY_LOW_TEMP_ALARM, OUTPUT);
 
     digitalWrite(PIN_RELAY_LINE_VALVE, LOW);
     digitalWrite(PIN_RELAY_PUMP, LOW);
     digitalWrite(PIN_RELAY_ALARM, LOW);
+    digitalWrite(PIN_RELAY_LOW_TEMP_ALARM, LOW);
 
     // Configure Hexapod Physical Mouth & Eyes Actuator / LED Output Pins
     pinMode(PIN_HEXAPOD_MOUTH, OUTPUT);
@@ -193,10 +197,17 @@ void WaterSystemController::readSensors() {
             _telemetry.temperatureC = t;
             _telemetry.temperatureF = (t * 1.8f) + 32.0f;
             _telemetry.dhtValid = true;
+            _telemetry.pumpRoomLowTempAlarm = (_telemetry.temperatureF < PUMP_ROOM_LOW_TEMP_ALARM_THRESHOLD_F);
         } else {
             _telemetry.dhtValid = false;
         }
         _lastDhtReadTime = now;
+
+        // Auto reset silence flag if pump room warmed back up and drops below 55°F again
+        if (!_telemetry.pumpRoomLowTempAlarm && _prevPumpRoomLowTempState) {
+            _telemetry.alarmSilenced = false;
+        }
+        _prevPumpRoomLowTempState = _telemetry.pumpRoomLowTempAlarm;
     }
 }
 
@@ -257,7 +268,7 @@ void WaterSystemController::executeStateMachine() {
     bool hasCurrentFault = (_telemetry.pumpOvercurrentTrip || _telemetry.pumpUndercurrentTrip);
 
     // -------------------------------------------------------------
-    // 2. TANK EMPTY & FAULT AUDIBLE ALARM / PULSING LOGIC
+    // 2. TANK EMPTY, LOW PUMP ROOM TEMP (<55°F) & FAULT AUDIBLE ALARM / PULSING LOGIC
     // -------------------------------------------------------------
     if (_telemetry.pumpCurrentFaultPending) {
         // Pre-trip warning period: pulse alarm relay (500ms ON / 500ms OFF)
@@ -271,7 +282,7 @@ void WaterSystemController::executeStateMachine() {
         }
     } else {
         _telemetry.alarmPulsing = false;
-        bool alarmCondition = _telemetry.tankEmpty || _telemetry.pumpOvercurrentTrip;
+        bool alarmCondition = _telemetry.tankEmpty || _telemetry.pumpOvercurrentTrip || _telemetry.pumpRoomLowTempAlarm;
         if (alarmCondition) {
             if (!_telemetry.alarmSilenced) {
                 _telemetry.alarm = true;
@@ -283,6 +294,9 @@ void WaterSystemController::executeStateMachine() {
             _telemetry.alarmSilenced = false;
         }
     }
+
+    // Pumphouse Interior Low Temp Alarm Dedicated Relay (GPIO 13)
+    _telemetry.relayLowTempAlarm = _telemetry.pumpRoomLowTempAlarm;
 
     // -------------------------------------------------------------
     // 3. FILL CYCLE AUTOMATION (Tank High / Low Level Transitions)
@@ -446,6 +460,7 @@ void WaterSystemController::updateActuators() {
     digitalWrite(PIN_RELAY_LINE_VALVE, _telemetry.lineValve ? HIGH : LOW);
     digitalWrite(PIN_RELAY_PUMP, _telemetry.pump ? HIGH : LOW);
     digitalWrite(PIN_RELAY_ALARM, _telemetry.alarm ? HIGH : LOW);
+    digitalWrite(PIN_RELAY_LOW_TEMP_ALARM, _telemetry.relayLowTempAlarm ? HIGH : LOW);
 
     // Write physical pin outputs to Hexapod Mascot (Active HIGH)
     digitalWrite(PIN_HEXAPOD_MOUTH, _telemetry.hexapodMouth ? HIGH : LOW);
@@ -601,6 +616,7 @@ String WaterSystemController::getTelemetryJson() const {
     doc["lineValve"] = _telemetry.lineValve;
     doc["pump"] = _telemetry.pump;
     doc["alarm"] = _telemetry.alarm;
+    doc["relayLowTempAlarm"] = _telemetry.relayLowTempAlarm;
     doc["alarmSilenced"] = _telemetry.alarmSilenced;
 
     // Faults, Warnings & Overrides
@@ -635,11 +651,12 @@ String WaterSystemController::getTelemetryJson() const {
     doc["pumpCooldownRemainingSec"] = _telemetry.pumpCooldownRemainingMs / 1000UL;
     doc["pumpCooldownTotalSec"] = PUMP_COOLDOWN_TIME_MS / 1000UL;
 
-    // DHT11
+    // DHT11 & Environmental Alarms
     doc["temperatureC"] = _telemetry.temperatureC;
     doc["temperatureF"] = _telemetry.temperatureF;
     doc["humidity"] = _telemetry.humidity;
     doc["dhtValid"] = _telemetry.dhtValid;
+    doc["pumpRoomLowTempAlarm"] = _telemetry.pumpRoomLowTempAlarm;
 
     // Fill cycle
     doc["fillCycleActive"] = _telemetry.isFillCycleActive;

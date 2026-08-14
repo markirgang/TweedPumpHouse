@@ -27,9 +27,10 @@ struct SystemTelemetry {
     bool pumpUndercurrent;// true if undercurrent sensor detects dry run / loss of prime
 
     // Actuator States (Physical Relay outputs)
-    bool lineValve;       // true = Valve Open, false = Valve Closed
-    bool pump;            // true = Pump Running, false = Pump Off
-    bool alarm;           // true = Audible Alarm active, false = Off/Silenced
+    bool lineValve;             // true = Valve Open, false = Valve Closed
+    bool pump;                  // true = Pump Running, false = Pump Off
+    bool alarm;                 // true = Audible Alarm active, false = Off/Silenced
+    bool relayLowTempAlarm;     // true = Pumphouse Interior Low Temp Alarm Relay Active (HIGH), false = Off
 
     // Alarm, Fault & Override Controls
     bool alarmSilenced;   // true if user pressed Silence Alarm
@@ -54,11 +55,12 @@ struct SystemTelemetry {
     unsigned long pumpCooldownStartTime;
     unsigned long pumpCooldownRemainingMs;
 
-    // Environmental Telemetry (DHT11)
+    // Environmental Telemetry (DHT11) & Pump Room Freeze Protection
     float temperatureC;
     float temperatureF;
     float humidity;
     bool dhtValid;
+    bool pumpRoomLowTempAlarm; // true if pump room temp < 55°F (critical room freeze alarm)
 
     // Fill cycle internal state
     bool isFillCycleActive; // true if active pumping/filling from Low to High
@@ -131,6 +133,7 @@ private:
     unsigned long _hexapodMouthOffTime;
 
     bool _prevTankEmptyState;
+    bool _prevPumpRoomLowTempState;
 
     void readSensors();
     void executeStateMachine();

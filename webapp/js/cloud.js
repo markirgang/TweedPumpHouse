@@ -82,6 +82,7 @@ class HardwareSimulator {
       lineValve: false,
       pump: false,
       alarm: false,
+      relayLowTempAlarm: false,
       alarmSilenced: false,
       pumpOvercurrentTrip: false,
       pumpUndercurrentTrip: false,
@@ -114,6 +115,7 @@ class HardwareSimulator {
       temperatureC: 20.0,
       humidity: 48.0,
       dhtValid: true,
+      pumpRoomLowTempAlarm: false,
       
       fillCycleActive: false,
 
@@ -183,6 +185,10 @@ class HardwareSimulator {
 
     const hasCurrentFault = (this.state.pumpOvercurrentTrip || this.state.pumpUndercurrentTrip);
 
+    // Pump Room Low Temp Alarm (<55°F) & Dedicated Relay Output
+    this.state.pumpRoomLowTempAlarm = (this.state.temperatureF < 55.0);
+    this.state.relayLowTempAlarm = this.state.pumpRoomLowTempAlarm;
+
     // 1. Alarm & Pulsing Relay Logic
     if (this.state.pumpCurrentFaultPending) {
       if (!this.state.alarmSilenced) {
@@ -194,7 +200,8 @@ class HardwareSimulator {
       }
     } else {
       this.state.alarmPulsing = false;
-      if (effectiveEmpty || this.state.pumpOvercurrentTrip) {
+      const alarmActive = effectiveEmpty || this.state.pumpOvercurrentTrip || this.state.pumpRoomLowTempAlarm;
+      if (alarmActive) {
         this.state.alarm = !this.state.alarmSilenced;
       } else {
         this.state.alarm = false;

@@ -153,6 +153,20 @@
       <button class="btn-action-small" id="btnResetUndercurrent">CLEAR</button>
     </section>
 
+    <!-- 1D. PUMP ROOM LOW TEMPERATURE ALARM (<55°F) -->
+    <section class="alarm-banner banner-low-temp" id="lowTempAlarmBanner">
+      <div class="alarm-left">
+        <svg viewBox="0 0 24 24">
+          <path d="M12,2A3,3 0 0,0 9,5V11.17C7.8,12.09 7,13.54 7,15A5,5 0 0,0 12,20A5,5 0 0,0 17,15C17,13.54 16.2,12.09 15,11.17V5A3,3 0 0,0 12,2M12,4A1,1 0 0,1 13,5V6H11V5A1,1 0 0,1 12,4M11,8H13V10H11V8M12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13Z"/>
+        </svg>
+        <div class="alarm-text">
+          <h3>CRITICAL ALARM: PUMP ROOM LOW TEMPERATURE (<span id="lowTempDisplay">55°F</span>)</h3>
+          <p>Pump room ambient temperature has dropped below 55°F threshold! Freeze risk to booster pump and indoor piping. Audible siren active.</p>
+        </div>
+      </div>
+      <button class="btn-silence-alarm">SILENCE ALARM</button>
+    </section>
+
     <!-- 2. FREEZE HAZARD BANNER -->
     <section class="freeze-banner" id="freezeBanner">
       <svg viewBox="0 0 24 24">
@@ -252,9 +266,13 @@
               <div class="metric-label">Fill Pipe Water State</div>
               <div class="metric-val val-grey" id="valPipeState">DRAINED / EMPTY</div>
             </div>
-            <div class="metric-box full-width">
-              <div class="metric-label">Water Pump (GPIO 25 Relay)</div>
+            <div class="metric-box">
+              <div class="metric-label">Water Pump Relay</div>
               <div class="metric-val val-grey" id="valPump">OFF / STANDBY</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Pumphouse Low Temp Relay (GPIO 13)</div>
+              <div class="metric-val val-grey" id="valLowTempRelay">OFF (STANDBY)</div>
             </div>
           </div>
 
@@ -753,6 +771,15 @@
             <div class="sim-btn-group" id="simUndercurrentGroup">
               <button class="btn-sim active" id="simUndercurrentNormal">Normal (Prime OK)</button>
               <button class="btn-sim" id="simUndercurrentFault">Trip Dry Run</button>
+            </div>
+          </div>
+
+          <div class="sim-box">
+            <label>Pump Room Ambient Temperature (DHT11)</label>
+            <div class="sim-btn-group" id="simTempGroup">
+              <button class="btn-sim active" id="simTempNorm">68°F (Normal)</button>
+              <button class="btn-sim" id="simTempLow">50°F (Low Temp Alarm &lt;55°F)</button>
+              <button class="btn-sim" id="simTempCold">35°F (Severe Freeze)</button>
             </div>
           </div>
         </div>
