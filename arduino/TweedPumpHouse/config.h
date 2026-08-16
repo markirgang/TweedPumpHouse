@@ -25,10 +25,10 @@
 #define MCP_PIN_FLOAT_TANK_LOW       1    // GPA1 (Pin 22): Tank Low Float (HIGH = Demand Water, LOW = Adequate)
 #define MCP_PIN_FLOAT_TANK_EMPTY     2    // GPA2 (Pin 23): Tank Empty Float (LOW = Critical Empty Alarm, HIGH = Adequate)
 #define MCP_PIN_FREEZE_SENSOR        3    // GPA3 (Pin 24): Outside Freeze Sensor (HIGH = <40°F Freeze Hazard, LOW = >=40°F Normal)
-#define MCP_PIN_PUMP_OVERCURRENT     4    // GPA4 (Pin 25): Overcurrent Sensor (LOW = Overload Trip, HIGH = Normal)
-#define MCP_PIN_PUMP_UNDERCURRENT    5    // GPA5 (Pin 26): Undercurrent Sensor (LOW = Dry Run / Cavitation Trip, HIGH = Normal)
-#define MCP_PIN_SPARE_IN1            6    // GPA6 (Pin 27): Spare Auxiliary Field Input 1
-#define MCP_PIN_SPARE_IN2            7    // GPA7 (Pin 28): Spare Auxiliary Field Input 2
+#define MCP_PIN_SPARE_IN1            4    // GPA4 (Pin 25): Spare Auxiliary Field Input 1 (Freed from legacy switch)
+#define MCP_PIN_SPARE_IN2            5    // GPA5 (Pin 26): Spare Auxiliary Field Input 2 (Freed from legacy switch)
+#define MCP_PIN_SPARE_IN3            6    // GPA6 (Pin 27): Spare Auxiliary Field Input 3
+#define MCP_PIN_SPARE_IN4            7    // GPA7 (Pin 28): Spare Auxiliary Field Input 4
 
 // MCP23017 Port B: Relay & Actuator Outputs (Active HIGH)
 #define MCP_PIN_RELAY_LINE_VALVE     0    // GPB0 (Pin 1): Line Valve (NC) & Fill Pipe Drain (NO) Shared Relay
@@ -49,18 +49,81 @@
 #define PIN_FLOAT_TANK_LOW           43   // Fallback Tank Low Float
 #define PIN_FLOAT_TANK_HIGH          44   // Fallback Tank High Float
 #define PIN_FREEZE_SENSOR            6    // Fallback Freeze Sensor
-#define PIN_PUMP_OVERCURRENT         19   // Fallback Overcurrent Sensor
-#define PIN_PUMP_UNDERCURRENT        20   // Fallback Undercurrent Sensor
 #define PIN_DHT11_DATA               43   // DHT11 Data Pin
 
-// Onboard Waveshare I2C Bus (Touch GT911 + CH422G I/O Expander)
-#define PIN_I2C_SDA             8    // GT911 Touch & CH422G SDA
-#define PIN_I2C_SCL             9    // GT911 Touch & CH422G SCL
+// Onboard Waveshare I2C Bus (Touch GT911 + CH422G I/O Expander + MCP23017 + ADS1115)
+#define PIN_I2C_SDA             8    // GT911 Touch, CH422G, MCP23017, ADS1115 SDA
+#define PIN_I2C_SCL             9    // GT911 Touch, CH422G, MCP23017, ADS1115 SCL
 #define PIN_TOUCH_INT           4    // GT911 Touch Interrupt (TP_IRQ)
 
+// =========================================================================
+// ADS1115 16-BIT I2C ADC, PRESSURE TRANSDUCERS & FCS521-SD-10V CURRENT SENSOR
+// =========================================================================
+// Municipal Water Line & Fill Pipe Pressure + Pump AC Current Monitoring
+// Shares existing I2C Bus (SDA: GPIO 8, SCL: GPIO 9) with MCP23017 and Touch Controller.
+#define ADS1115_DEFAULT_ADDR          0x48 // I2C Address (ADDR connected to GND)
+#define ADS1115_REG_POINTER_CONVERT   0x00 // Conversion Register
+#define ADS1115_REG_POINTER_CONFIG    0x01 // Configuration Register
+
+// ADS1115 ADC Channels
+#define ADS_CHAN_PRESSURE_MUNICIPAL   0    // AIN0: Municipal Water Supply (0 - 100 PSI)
+#define ADS_CHAN_PRESSURE_FILL_PIPE   1    // AIN1: Fill Pipe / Booster Pump Discharge (0 - 200 PSI)
+#define ADS_CHAN_PUMP_CURRENT         2    // AIN2: FCS521-SD-10V Current Transmitter (0 - 50A AC, 0 - 10V DC)
+#define ADS_CHAN_AUX_3                3    // AIN3: Auxiliary / Spare Analog Channel
+
+// Pressure Transducer Specifications & Voltage Divider Scaling
+// Sensors: 5V powered, 0.5V = 0 PSI, 4.5V = Max Rated PSI
+// 2:1 Voltage Divider: R1=10k, R2=20k -> Factor = 20/(10+20) = 2/3 (~0.6667)
+#define PRESSURE_VOLTAGE_DIVIDER_RATIO 0.666667f // R2 / (R1 + R2)
+#define PRESSURE_SENSOR_VMIN           0.50f     // 0.5V at 0 PSI
+#define PRESSURE_SENSOR_VMAX           4.50f     // 4.5V at Max PSI
+#define PRESSURE_SENSOR_VSPAN          4.00f     // (4.5V - 0.5V)
+
+#define MUNICIPAL_PRESSURE_MAX_PSI     100.0f    // 0 - 100 PSI Range
+#define FILL_PIPE_PRESSURE_MAX_PSI     200.0f    // 0 - 200 PSI Range
+#define PRESSURE_READ_INTERVAL_MS      500       // Read and filter pressure every 500ms
+
+// FCS521-SD-10V AC Current Transmitter Specifications & Voltage Divider
+// Sensor: 0 - 50A AC Input -> 0 - 10V DC Linear Output (0.2V/A or 5.0A/V)
+// 3:1 Voltage Divider: R1=20k, R2=10k -> Factor = 10/(20+10) = 1/3 (~0.333333)
+// At 50A (10V Out), ADC input is 3.33V (Safe for 3.3V ADS1115 input)
+#define CURRENT_VOLTAGE_DIVIDER_RATIO 0.333333f // R2 / (R1 + R2)
+#define PUMP_CURRENT_SENSOR_VMIN      0.00f     // 0.0V at 0 Amps
+#define PUMP_CURRENT_SENSOR_VMAX      10.00f    // 10.0V at 50 Amps
+#define PUMP_CURRENT_MAX_AMPS         50.0f     // 0 - 50 Amps Rated Span
+#define PUMP_CURRENT_AMPS_PER_VOLT    5.0f      // 50A / 10V = 5.0 A/V
+#define CURRENT_READ_INTERVAL_MS      250       // Read and filter current every 250ms
+
+// Dynamic Motor Current Protection Thresholds (Amperes)
+#define PUMP_OVERCURRENT_THRESHOLD_AMPS  18.0f  // Overload / Motor Jam / Locked Rotor Trip (> 18.0A)
+#define PUMP_UNDERCURRENT_THRESHOLD_AMPS 4.5f   // Dry Run / Loss of Suction Prime / Cavitation (< 4.5A)
+#define PUMP_CURRENT_IDLE_MAX_AMPS       0.5f   // Max current when pump is officially OFF (< 0.5A)
+#define PUMP_NOMINAL_RUNNING_AMPS        11.2f  // Typical running booster pump load (~11.2A)
+
+// Pressure Alarm Thresholds & Safety Cutouts
+#define MUNICIPAL_LOW_PRESSURE_ALARM_PSI  20.0f  // Warning if municipal city pressure < 20 PSI
+#define MUNICIPAL_PRESSURE_CUTOUT_PSI     5.0f   // Critical low pressure cutout threshold (< 5 PSI)
+#define MUNICIPAL_PRESSURE_FAULT_DELAY_MS (30UL * 1000UL) // 30 Seconds Delay before Pump Shutdown
+#define FILL_PIPE_HIGH_PRESSURE_ALARM_PSI 180.0f // Warning if fill pipe pressure > 180 PSI (blockage/freeze)
+
+// =========================================================================
+// I2S MONO AUDIO AMPLIFIER CONFIGURATION (MAX98357A / Class-D I2S DAC Amp)
+// =========================================================================
+// Direct ESP32-S3 GPIO pin mapping for I2S Mono DAC Audio Amplifier (e.g. MAX98357A)
+// When MCP23017 handles field relays and inputs, GPIOs 12, 11, 13 are dedicated to hardware I2S.
+#define I2S_ENABLED                  true // Enable I2S Hardware Audio Output
+#define I2S_PORT_NUM                 0    // ESP32-S3 I2S Port (0 = I2S_NUM_0)
+#define PIN_I2S_BCLK                 12   // I2S Bit Clock (BCLK / SCK / BCK)
+#define PIN_I2S_LRC                  11   // I2S Left/Right Word Select Clock (LRC / WS / LCK)
+#define PIN_I2S_DOUT                 13   // I2S Serial Data Out to Amp DIN (DIN / SDATA / SD)
+#define PIN_I2S_SD_MODE              -1   // Optional Shutdown / Mute Pin (-1 if tied to VDD/GND or unmanaged)
+#define I2S_SAMPLE_RATE              16000// 16kHz audio sample rate (optimal for speech, chimes, sirens)
+#define I2S_DEFAULT_VOLUME           80   // Default power-on volume percentage (0 to 100)
+#define I2S_FEEDBACK_CLICKS_ENABLED  true // Play subtle tactile audio chirp on touchscreen presses
+
 // Hexapod Physical Actuator & LED Output Pins
-#define PIN_HEXAPOD_MOUTH       11   // Hexapod Mouth Actuator / LED Output (HIGH = Mouth Open / Active, LOW = Closed)
-#define PIN_HEXAPOD_EYES        12   // Hexapod Ocular LED Eyes Output (HIGH = Eyes ON, LOW = Eyes Off / Blink)
+#define PIN_HEXAPOD_MOUTH       11   // Hexapod Mouth Actuator / LED Output (Fallback GPIO)
+#define PIN_HEXAPOD_EYES        12   // Hexapod Ocular LED Eyes Output (Fallback GPIO)
 
 // Hexapod Eyes Blinking & Speech Sync Timings
 #define HEXAPOD_BLINK_INTERVAL_MIN_MS  3000 // Minimum 3.0s between natural eye blinks

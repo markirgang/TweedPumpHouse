@@ -61,9 +61,9 @@ void BleServiceManager::onDisconnect(BLEServer* pServer) {
 }
 
 void BleServiceManager::onWrite(BLECharacteristic* pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
+    String value = pCharacteristic->getValue();
     if (value.length() > 0) {
-        String cmdStr = String(value.c_str());
+        String cmdStr = value;
         Serial.print("[BLE] Command received: ");
         Serial.println(cmdStr);
 
@@ -99,3 +99,4 @@ void BleServiceManager::update(const String& telemetryJson) {
         }
     }
 }
+

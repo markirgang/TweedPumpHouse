@@ -62,6 +62,26 @@ struct SystemTelemetry {
     bool dhtValid;
     bool pumpRoomLowTempAlarm; // true if pump room temp < 55°F (critical room freeze alarm)
 
+    // Pressure Transducers & ADS1115 Telemetry
+    float pressureMunicipalPsi;        // Live Municipal 9W Line Pressure (0 - 100 PSI)
+    float pressureFillPipePsi;         // Live Uphill Fill Pipe / Booster Discharge Pressure (0 - 200 PSI)
+    float pressureMunicipalVolts;      // Scaled Sensor Output Voltage (0.5V - 4.5V)
+    float pressureFillPipeVolts;       // Scaled Sensor Output Voltage (0.5V - 4.5V)
+    bool ads1115Detected;              // true if ADS1115 ADC responded on I2C (0x48)
+    bool municipalLowPressureAlarm;    // true if Municipal line < 20 PSI
+    bool fillPipeHighPressureAlarm;    // true if Fill pipe > 180 PSI (blockage/freeze danger)
+
+    // FCS521-SD-10V AC Current Transmitter & Motor Protection Telemetry
+    float pumpCurrentAmps;             // Live Pump AC RMS Current (0.0 - 50.0 Amps)
+    float pumpCurrentVolts;            // Scaled Sensor Output Voltage (0.0V - 10.0V DC)
+    float currentOverrideAmps;         // Simulated/Test Current Injection (-1.0f = AUTO mode)
+
+    // Municipal Low Pressure (<5 PSI) 30-Second Cutout Safety Protection
+    bool municipalPressureTrip;               // true if latched fault when municipal pressure < 5 PSI for 30s
+    bool municipalPressureFaultPending;       // true if counting down 30s before dry-run shutdown
+    unsigned long municipalPressureFaultStartTime; // millis() when <5 PSI fault started
+    unsigned long municipalPressureFaultRemainingMs; // remaining ms before pump shutdown
+
     // Fill cycle internal state
     bool isFillCycleActive; // true if active pumping/filling from Low to High
 
@@ -77,6 +97,12 @@ struct SystemTelemetry {
     bool hexapodMouth;                  // true = Mouth Open / Speaking, false = Closed
     bool hexapodEyes;                   // true = Ocular Eyes Illuminated, false = Closed/Blinking
     bool hexapodSpeechSync;             // true = Synchronized to AI Python Audio Stream & Voice, false = Manual
+
+    // I2S Mono Audio Amplifier Telemetry
+    uint8_t audioVolume;                // 0 - 100%
+    bool audioMuted;                    // true if audio is muted
+    bool audioPlaying;                  // true if a tone/chime/siren/phrase is actively playing
+    bool i2sAudioEnabled;               // true if I2S hardware audio amp is enabled
 };
 
 class WaterSystemController {
@@ -97,8 +123,18 @@ public:
     void setOvercurrentOverride(OverrideMode mode);
     void setUndercurrentOverride(OverrideMode mode);
     void setFreezeOverride(OverrideMode mode);
+    void setCurrentOverrideAmps(float amps);
     void resetAllOverrides();
     void emergencyStop();
+
+    // I2S Mono Audio Amplifier Controls & Cues
+    void setAudioVolume(uint8_t percent);
+    void setAudioMute(bool muted);
+    void toggleAudioMute();
+    void playAudioChime(int chimeId);
+    void playAudioSiren(int sirenId, uint32_t durationMs = 0);
+    void speakAudioPhrase(int phraseId);
+    void stopAudio();
 
     // Hexapod Physical Actuators & Speech Lip-Sync API
     void setHexapodMouth(bool open);
@@ -143,11 +179,30 @@ private:
     void mcpWriteRegister(uint8_t addr, uint8_t reg, uint8_t val);
     uint8_t mcpReadRegister(uint8_t addr, uint8_t reg);
 
+    // ADS1115 16-Bit I2C ADC Pressure & Current Driver
+    bool _adsDetected;
+    uint8_t _adsAddress;
+    unsigned long _lastPressureReadTime;
+    unsigned long _lastCurrentReadTime;
+    float _emaPressureMunicipal;
+    float _emaPressureFillPipe;
+    float _emaPumpCurrent;
+    float _emaPumpCurrentVolts;
+    bool initADS1115();
+    int16_t ads1115ReadRaw(uint8_t channel);
+    float rawToSensorVolts(int16_t raw);
+    float voltsToPsi(float sensorVolts, float maxPsi);
+    float rawToCurrentSensorVolts(int16_t raw);
+    float currentVoltsToAmps(float sensorVolts);
+    void readPressureSensors();
+    void readCurrentSensor();
+
     void readSensors();
     void executeStateMachine();
     void updateActuators();
 public:
     bool isMcpDetected() const { return _mcpDetected; }
+    bool isAds1115Detected() const { return _adsDetected; }
 };
 
 extern WaterSystemController systemController;

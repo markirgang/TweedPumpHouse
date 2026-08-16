@@ -583,19 +583,69 @@ class SystemSchematic {
     }
     ctx.restore();
 
-    // Current Monitor Module above Pump
+    // =========================================================================
+    // FCS521-SD-10V AC Current Transmitter (0-50A via ADS1115 AIN2)
+    // =========================================================================
     const csx = px, csy = py - 32;
+    const currAmps = (this.state.pumpCurrentAmps !== undefined) ? Number(this.state.pumpCurrentAmps) : 0.0;
+    const isOverload = this.state.pumpOvercurrentTrip || (currAmps > (this.state.overcurrentThresholdAmps || 18.0));
+    const isDryRun = this.state.pumpUndercurrentTrip || (pumpOn && currAmps < (this.state.undercurrentThresholdAmps || 4.5));
+
     ctx.save();
-    ctx.fillStyle = hasFault ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)';
-    ctx.strokeStyle = hasFault ? '#ef4444' : '#10b981';
-    ctx.lineWidth = 1;
-    ctx.roundRect(csx - 22, csy - 9, 44, 16, 4);
+    // Conduit wire connecting from pump to sensor
+    ctx.strokeStyle = pumpOn ? '#f59e0b' : '#64748b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px, py - 18);
+    ctx.lineTo(px, csy + 12);
+    ctx.stroke();
+
+    // CT Toroid Doughnut Ring Core (FCS521)
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = isOverload ? '#ef4444' : (isDryRun ? '#f59e0b' : (pumpOn ? '#10b981' : '#475569'));
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(csx, csy + 6, 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = hasFault ? '#fca5a5' : '#a7f3d0';
-    ctx.font = 'bold 7.5px sans-serif';
-    ctx.fillText(hasFault ? 'CURRENT !' : 'CURRENT OK', csx - 19, csy + 2);
+    // FCS521 Transmitter Electronics Housing & Badge
+    let ctBg = 'rgba(15, 23, 42, 0.92)';
+    let ctBorder = 'rgba(56, 189, 248, 0.5)';
+    let ctText = '#38bdf8';
+
+    if (isOverload) {
+      ctBg = 'rgba(239, 68, 68, 0.95)';
+      ctBorder = '#ef4444';
+      ctText = '#ffffff';
+    } else if (isDryRun) {
+      ctBg = 'rgba(245, 158, 11, 0.95)';
+      ctBorder = '#fbbf24';
+      ctText = '#000000';
+    } else if (pumpOn) {
+      ctBg = 'rgba(16, 185, 129, 0.90)';
+      ctBorder = '#34d399';
+      ctText = '#ffffff';
+    }
+
+    ctx.fillStyle = ctBg;
+    ctx.strokeStyle = ctBorder;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(csx - 30, csy - 18, 60, 20, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Badge Text
+    ctx.fillStyle = ctText;
+    ctx.font = 'bold 8.5px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${currAmps.toFixed(1)} A`, csx, csy - 7);
+
+    ctx.fillStyle = isOverload ? '#fecaca' : (isDryRun ? '#451a03' : (pumpOn ? '#d1fae5' : '#94a3b8'));
+    ctx.font = 'bold 6.5px sans-serif';
+    ctx.fillText(isOverload ? 'OVERLOAD' : (isDryRun ? 'DRY CAVIT' : (pumpOn ? 'FCS521 LOAD' : 'FCS521 0-50A')), csx, csy - 1);
+    ctx.textAlign = 'start';
     ctx.restore();
 
     // =========================================================================
@@ -611,6 +661,101 @@ class SystemSchematic {
     ctx.fillStyle = this.state.freezeSensor ? '#f87171' : '#a7f3d0';
     ctx.font = 'bold 8.5px sans-serif';
     ctx.fillText(this.state.freezeSensor ? 'FREEZE <40°F' : 'OUTSIDE >40°F', fsx - 62, fsy + 3);
+    ctx.restore();
+
+    // =========================================================================
+    // 6. MUNICIPAL & FILL PIPE PRESSURE TRANSDUCERS (ADS1115 I2C ADC)
+    // =========================================================================
+    // Transducer 1: Municipal Water Pressure (AIN0, 0-100 PSI) at x = 85
+    const mtx = 85, mty = h - 100;
+    const muniPsi = (this.state.pressureMunicipalPsi !== undefined) ? this.state.pressureMunicipalPsi : 58.0;
+    const isMuniTrip = this.state.municipalPressureTrip || false;
+    const isMuniPending = this.state.municipalPressureFaultPending || false;
+    const isMuniLow = (this.state.municipalLowPressureAlarm || (muniPsi < 20.0 && muniPsi > 0.5) || isMuniTrip || isMuniPending);
+
+    ctx.save();
+    // Pipe Thread Tap
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(mtx, mty - 6);
+    ctx.lineTo(mtx, mty - 16);
+    ctx.stroke();
+
+    // Sensor Body (Hex/Circular Housing)
+    ctx.fillStyle = (isMuniTrip || isMuniPending) ? '#991b1b' : (isMuniLow ? '#78350f' : '#0f172a');
+    ctx.strokeStyle = (isMuniTrip || isMuniPending) ? '#ef4444' : (isMuniLow ? '#f59e0b' : '#38bdf8');
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(mtx, mty - 22, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Sensor PSI Badge
+    ctx.fillStyle = (isMuniTrip || isMuniPending) ? 'rgba(239, 68, 68, 0.95)' : (isMuniLow ? 'rgba(245, 158, 11, 0.9)' : 'rgba(15, 23, 42, 0.9)');
+    ctx.strokeStyle = (isMuniTrip || isMuniPending) ? '#ef4444' : (isMuniLow ? '#fbbf24' : 'rgba(56, 189, 248, 0.6)');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(mtx - 28, mty - 44, 56, 16, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = (isMuniTrip || isMuniPending || isMuniLow) ? '#fff' : '#38bdf8';
+    ctx.font = 'bold 8px monospace';
+    if (isMuniTrip) {
+      ctx.fillText(`OUTAGE!`, mtx - 18, mty - 33);
+    } else if (isMuniPending) {
+      const rem = this.state.municipalPressureFaultRemainingSec || 30;
+      ctx.fillText(`CUT ${rem}s`, mtx - 16, mty - 33);
+    } else {
+      ctx.fillText(`${muniPsi.toFixed(1)} PSI`, mtx - 18, mty - 33);
+    }
+
+    ctx.fillStyle = (isMuniTrip || isMuniPending) ? '#f87171' : '#64748b';
+    ctx.font = '6.5px sans-serif';
+    ctx.fillText('9W MUNI', mtx - 13, mty - 48);
+    ctx.restore();
+
+    // Transducer 2: Fill Pipe Discharge Pressure (AIN1, 0-200 PSI) at x = 295
+    const ftx = 298, fty = h - 100;
+    const fillPsi = (this.state.pressureFillPipePsi !== undefined) ? this.state.pressureFillPipePsi : 0.0;
+    const isFillHigh = (this.state.fillPipeHighPressureAlarm || fillPsi > 180.0);
+    const isPumpingActive = (this.state.pump || this.state.pumpTimingState === 1);
+
+    ctx.save();
+    // Pipe Thread Tap
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(ftx, fty - 6);
+    ctx.lineTo(ftx, fty - 16);
+    ctx.stroke();
+
+    // Sensor Body
+    ctx.fillStyle = isFillHigh ? '#991b1b' : (isPumpingActive ? '#0284c7' : '#0f172a');
+    ctx.strokeStyle = isFillHigh ? '#ef4444' : (isPumpingActive ? '#00f0ff' : '#10b981');
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ftx, fty - 22, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Sensor PSI Badge
+    ctx.fillStyle = isFillHigh ? 'rgba(239, 68, 68, 0.9)' : 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = isFillHigh ? '#ef4444' : (isPumpingActive ? 'rgba(0, 240, 255, 0.7)' : 'rgba(16, 185, 129, 0.6)');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(ftx - 26, fty - 44, 52, 16, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = isFillHigh ? '#fff' : (isPumpingActive ? '#00f0ff' : '#34d399');
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText(`${fillPsi.toFixed(1)} PSI`, ftx - 18, fty - 33);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '6.5px sans-serif';
+    ctx.fillText('FILL PIPE', ftx - 14, fty - 48);
     ctx.restore();
 
     ctx.restore();

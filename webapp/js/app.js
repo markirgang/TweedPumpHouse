@@ -519,7 +519,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const durationBadge = document.getElementById('pumpDurationBadge');
     const progressBar = document.getElementById('pumpProgressBar');
 
-    if (t.pumpOvercurrentTrip || t.pumpUndercurrentTrip) {
+    if (t.municipalPressureTrip) {
+      timerLabel.innerText = 'Municipal Cutout:';
+      timerDigits.innerText = 'OUTAGE (<5 PSI TRIP)';
+      statusDesc.innerText = 'Municipal pressure was under 5 PSI for 30s. Pump shut down to protect from dry run. Press Reset Fault.';
+      durationBadge.className = 'badge-pill fault';
+      durationBadge.innerText = 'TRIPPED';
+      progressBar.className = 'progress-bar-fill fault';
+      progressBar.style.width = '100%';
+    } else if (t.municipalPressureFaultPending) {
+      const remSec = (t.municipalPressureFaultRemainingSec !== undefined)
+        ? t.municipalPressureFaultRemainingSec
+        : Math.ceil((t.municipalPressureFaultRemainingMs || 0) / 1000);
+      timerLabel.innerText = 'Municipal Low Pressure:';
+      timerDigits.innerText = `SHUTDOWN IN ${remSec}s`;
+      statusDesc.innerText = `Municipal pressure < 5 PSI! Counting down 30s before emergency pump cutout.`;
+      durationBadge.className = 'badge-pill cooldown';
+      durationBadge.innerText = `${remSec}s REM`;
+      progressBar.className = 'progress-bar-fill cooldown';
+      progressBar.style.width = `${Math.min(100, (remSec / 30) * 100)}%`;
+    } else if (t.pumpOvercurrentTrip || t.pumpUndercurrentTrip) {
       timerLabel.innerText = 'Fault Interlock:';
       timerDigits.innerText = t.pumpOvercurrentTrip ? 'OVERLOAD TRIP' : 'DRY RUN TRIP';
       statusDesc.innerText = 'Safety trip stopped pump. Press Reset Fault.';
@@ -592,45 +611,182 @@ document.addEventListener('DOMContentLoaded', () => {
       progressBar.style.width = '0%';
     }
 
-    // 6. Current Sensors Card
-    const overInd = document.getElementById('currentOverInd');
-    const overState = document.getElementById('currentOverState');
-    if (t.pumpOvercurrentTrip || t.pumpOvercurrent || t.isOvercurrentPending) {
-      overInd.className = 'float-indicator active-red';
-      overState.innerText = t.pumpOvercurrentTrip ? 'FAULT (TRIPPED)' : (t.isOvercurrentPending ? 'WARNING (PULSE)' : 'ACTIVE (> LIMIT)');
-      overState.className = 'float-state-pill val-red';
-    } else {
-      overInd.className = 'float-indicator active-green';
-      overState.innerText = 'NORMAL (< LIMIT)';
-      overState.className = 'float-state-pill val-green';
+    // 6. FCS521-SD-10V AC Current Transmitter Telemetry
+    const currAmps = (t.pumpCurrentAmps !== undefined) ? Number(t.pumpCurrentAmps) : 0.0;
+    const currVolts = (t.pumpCurrentVolts !== undefined) ? Number(t.pumpCurrentVolts) : ((currAmps / 50.0) * 10.0);
+    const overThreshold = (t.overcurrentThresholdAmps !== undefined) ? Number(t.overcurrentThresholdAmps) : 18.0;
+    const underThreshold = (t.undercurrentThresholdAmps !== undefined) ? Number(t.undercurrentThresholdAmps) : 4.5;
+
+    const valCurrElem = document.getElementById('valPumpCurrent');
+    if (valCurrElem) {
+      valCurrElem.innerHTML = `${currAmps.toFixed(1)} <span class="unit">A</span>`;
     }
 
-    const underInd = document.getElementById('currentUnderInd');
-    const underState = document.getElementById('currentUnderState');
-    if (t.pumpUndercurrentTrip || t.pumpUndercurrent || t.isUndercurrentPending) {
-      underInd.className = 'float-indicator active-yellow';
-      underState.innerText = t.pumpUndercurrentTrip ? 'DRY RUN (TRIPPED)' : (t.isUndercurrentPending ? 'WARNING (PULSE)' : 'DRY RUN DETECTED');
-      underState.className = 'float-state-pill val-amber';
-    } else {
-      underInd.className = 'float-indicator active-green';
-      underState.innerText = 'NORMAL (PRIME OK)';
-      underState.className = 'float-state-pill val-green';
+    const valCurrVoltsElem = document.getElementById('valPumpCurrentVolts');
+    if (valCurrVoltsElem) {
+      valCurrVoltsElem.innerText = `Sensor: ${currVolts.toFixed(2)}V (0-10V Linear)`;
+    }
+
+    const badgeCurrStatus = document.getElementById('badgeCurrentStatus');
+    const barCurrFill = document.getElementById('barPumpCurrent');
+    const needleCurr = document.getElementById('needlePumpCurrent');
+
+    // Bar percentage: 0 to 50 Amps -> 0% to 100%
+    const currPct = Math.max(0, Math.min(100, (currAmps / 50.0) * 100.0));
+    if (barCurrFill) barCurrFill.style.width = `${currPct}%`;
+    if (needleCurr) needleCurr.style.left = `${currPct}%`;
+
+    if (badgeCurrStatus) {
+      if (t.pumpOvercurrentTrip) {
+        badgeCurrStatus.innerText = 'OVERLOAD TRIP';
+        badgeCurrStatus.className = 'pressure-status-badge val-red';
+      } else if (t.pumpUndercurrentTrip) {
+        badgeCurrStatus.innerText = 'DRY RUN TRIP';
+        badgeCurrStatus.className = 'pressure-status-badge val-amber';
+      } else if (t.pumpCurrentFaultPending) {
+        badgeCurrStatus.innerText = `WARN PULSE (${t.pumpCurrentFaultRemainingSec || 60}s)`;
+        badgeCurrStatus.className = 'pressure-status-badge val-amber';
+      } else if (t.pump || t.pumpTimingState === 1) {
+        if (currAmps > overThreshold) {
+          badgeCurrStatus.innerText = 'OVERLOAD (>18A)';
+          badgeCurrStatus.className = 'pressure-status-badge val-red';
+        } else if (currAmps < underThreshold) {
+          badgeCurrStatus.innerText = 'DRY RUN (<4.5A)';
+          badgeCurrStatus.className = 'pressure-status-badge val-amber';
+        } else {
+          badgeCurrStatus.innerText = 'RUNNING (OK)';
+          badgeCurrStatus.className = 'pressure-status-badge val-green';
+        }
+      } else {
+        badgeCurrStatus.innerText = 'STANDBY READY';
+        badgeCurrStatus.className = 'pressure-status-badge val-grey';
+      }
     }
 
     const currentBox = document.getElementById('currentSummaryBox');
     const currentText = document.getElementById('currentSummaryText');
-    if (t.pumpOvercurrentTrip) {
-      currentBox.className = 'current-summary-box fault';
-      currentText.innerText = 'Overcurrent trip active! Motor current exceeded safety limit.';
-    } else if (t.pumpUndercurrentTrip) {
-      currentBox.className = 'current-summary-box fault';
-      currentText.innerText = 'Dry run / undercurrent trip active! Suction line loss of prime.';
-    } else if (t.pumpCurrentFaultPending) {
-      currentBox.className = 'current-summary-box fault';
-      currentText.innerText = 'Pre-trip warning active: Alarm relay pulsing for 1 minute before shutdown.';
-    } else {
-      currentBox.className = 'current-summary-box';
-      currentText.innerText = 'Motor current within safe operating bounds.';
+    if (currentBox && currentText) {
+      if (t.municipalPressureTrip) {
+        currentBox.className = 'current-summary-box fault';
+        currentText.innerText = 'Municipal water outage (<5 PSI) trip active! Booster stopped to prevent dry run.';
+      } else if (t.municipalPressureFaultPending) {
+        currentBox.className = 'current-summary-box fault';
+        currentText.innerText = 'Municipal pressure < 5 PSI warning: Shutting down pump in ' + (t.municipalPressureFaultRemainingSec || 30) + ' seconds.';
+      } else if (t.pumpOvercurrentTrip) {
+        currentBox.className = 'current-summary-box fault';
+        currentText.innerText = `Overload trip latched! Motor current (${currAmps.toFixed(1)}A) exceeded safety limit (${overThreshold.toFixed(1)}A).`;
+      } else if (t.pumpUndercurrentTrip) {
+        currentBox.className = 'current-summary-box fault';
+        currentText.innerText = `Dry run / cavitation trip latched! Motor current (${currAmps.toFixed(1)}A) fell below prime threshold (${underThreshold.toFixed(1)}A).`;
+      } else if (t.pumpCurrentFaultPending) {
+        currentBox.className = 'current-summary-box fault';
+        currentText.innerText = `Pre-trip warning active: Alarm relay pulsing (${t.pumpCurrentFaultRemainingSec || 60}s remaining) before safety shutdown.`;
+      } else {
+        currentBox.className = 'current-summary-box';
+        currentText.innerText = `FCS521-SD-10V Current: ${currAmps.toFixed(1)}A (${currVolts.toFixed(2)}V) — Load protection healthy.`;
+      }
+    }
+
+    // 6B. Water Line Pressure Transducers & ADS1115 Telemetry
+    const muniPsi = (t.pressureMunicipalPsi !== undefined) ? t.pressureMunicipalPsi : 58.0;
+    const fillPsi = (t.pressureFillPipePsi !== undefined) ? t.pressureFillPipePsi : 0.0;
+    const muniVolts = (t.pressureMunicipalVolts !== undefined) ? t.pressureMunicipalVolts : (0.5 + (muniPsi / 100.0) * 4.0);
+    const fillVolts = (t.pressureFillPipeVolts !== undefined) ? t.pressureFillPipeVolts : (0.5 + (fillPsi / 200.0) * 4.0);
+
+    const valMuniElem = document.getElementById('valMuniPressure');
+    const badgeMuniElem = document.getElementById('badgeMuniPressure');
+    const barMuniElem = document.getElementById('barMuniPressure');
+    const txtMuniVoltsElem = document.getElementById('txtMuniVolts');
+
+    if (valMuniElem) {
+      valMuniElem.innerHTML = `${muniPsi.toFixed(1)} <span class="unit">PSI</span>`;
+      if (txtMuniVoltsElem) txtMuniVoltsElem.innerText = `Sensor: ${muniVolts.toFixed(2)}V`;
+      if (barMuniElem) {
+        barMuniElem.style.width = `${Math.min(100, Math.max(0, (muniPsi / 100.0) * 100))}%`;
+      }
+      if (t.municipalPressureTrip) {
+        if (badgeMuniElem) {
+          badgeMuniElem.innerText = 'OUTAGE TRIP (<5 PSI)';
+          badgeMuniElem.className = 'pressure-status-badge val-red';
+        }
+        if (barMuniElem) barMuniElem.classList.add('alert');
+      } else if (t.municipalPressureFaultPending) {
+        const remSec = t.municipalPressureFaultRemainingSec || 30;
+        if (badgeMuniElem) {
+          badgeMuniElem.innerText = `CUTOUT IN ${remSec}s (<5 PSI)`;
+          badgeMuniElem.className = 'pressure-status-badge val-amber';
+        }
+        if (barMuniElem) barMuniElem.classList.add('alert');
+      } else if (t.municipalLowPressureAlarm || (muniPsi < 20.0 && muniPsi > 0.5)) {
+        if (badgeMuniElem) {
+          badgeMuniElem.innerText = 'LOW PRESSURE (<20)';
+          badgeMuniElem.className = 'pressure-status-badge val-red';
+        }
+        if (barMuniElem) barMuniElem.classList.add('alert');
+      } else if (muniPsi <= 0.5) {
+        if (badgeMuniElem) {
+          badgeMuniElem.innerText = 'NO PRESSURE';
+          badgeMuniElem.className = 'pressure-status-badge val-grey';
+        }
+        if (barMuniElem) barMuniElem.classList.remove('alert');
+      } else {
+        if (badgeMuniElem) {
+          badgeMuniElem.innerText = 'NORMAL';
+          badgeMuniElem.className = 'pressure-status-badge val-green';
+        }
+        if (barMuniElem) barMuniElem.classList.remove('alert');
+      }
+    }
+
+    const valFillElem = document.getElementById('valFillPressure');
+    const badgeFillElem = document.getElementById('badgeFillPressure');
+    const barFillElem = document.getElementById('barFillPressure');
+    const txtFillVoltsElem = document.getElementById('txtFillVolts');
+
+    if (valFillElem) {
+      valFillElem.innerHTML = `${fillPsi.toFixed(1)} <span class="unit">PSI</span>`;
+      if (txtFillVoltsElem) txtFillVoltsElem.innerText = `Sensor: ${fillVolts.toFixed(2)}V`;
+      if (barFillElem) {
+        barFillElem.style.width = `${Math.min(100, Math.max(0, (fillPsi / 200.0) * 100))}%`;
+      }
+      if (t.fillPipeHighPressureAlarm || fillPsi > 180.0) {
+        if (badgeFillElem) {
+          badgeFillElem.innerText = 'OVER-PRESSURE (>180)';
+          badgeFillElem.className = 'pressure-status-badge val-red';
+        }
+        if (barFillElem) barFillElem.classList.add('alert');
+      } else if (t.pumpTimingState === 1 || t.pump) {
+        if (badgeFillElem) {
+          badgeFillElem.innerText = 'BOOSTING UPHILL';
+          badgeFillElem.className = 'pressure-status-badge val-cyan';
+        }
+        if (barFillElem) barFillElem.classList.remove('alert');
+      } else if (t.lineValve) {
+        if (badgeFillElem) {
+          badgeFillElem.innerText = 'GRAVITY TOP-OFF';
+          badgeFillElem.className = 'pressure-status-badge val-green';
+        }
+        if (barFillElem) barFillElem.classList.remove('alert');
+      } else {
+        if (badgeFillElem) {
+          badgeFillElem.innerText = 'DRAINED (0 PSI)';
+          badgeFillElem.className = 'pressure-status-badge val-grey';
+        }
+        if (barFillElem) barFillElem.classList.remove('alert');
+      }
+    }
+
+    const badgeAdsStatus = document.getElementById('badgeAdsStatus');
+    if (badgeAdsStatus) {
+      if (t.ads1115Detected) {
+        badgeAdsStatus.innerText = 'ADS1115 ONLINE (0x48)';
+        badgeAdsStatus.style.background = 'rgba(16, 185, 129, 0.2)';
+        badgeAdsStatus.style.color = '#34d399';
+      } else {
+        badgeAdsStatus.innerText = 'ADS1115 I2C (0x48)';
+        badgeAdsStatus.style.background = '';
+        badgeAdsStatus.style.color = '';
+      }
     }
 
     // 7. Climate
@@ -656,6 +812,39 @@ document.addEventListener('DOMContentLoaded', () => {
     updateOverrideButtons('undercurrentOverrideGroup', t.undercurrentOverride || 0);
     updateOverrideButtons('freezeOverrideGroup', t.freezeOverride || 0);
 
+    // FCS521 Current Sensor Simulator Slider & Preset Badges
+    const simSlider = document.getElementById('simCurrentSlider');
+    const simBadge = document.getElementById('simCurrentBadge');
+    const currOverride = (t.currentOverrideAmps !== undefined) ? Number(t.currentOverrideAmps) : -1.0;
+    
+    if (simBadge) {
+      if (currOverride >= 0) {
+        simBadge.innerText = `${currOverride.toFixed(1)}A (OVERRIDE)`;
+        if (currOverride > 18.0) simBadge.className = 'slider-badge mode-trip';
+        else if (currOverride < 4.5 && currOverride > 0.5) simBadge.className = 'slider-badge mode-dry';
+        else simBadge.className = 'slider-badge';
+      } else {
+        simBadge.innerText = 'AUTO (DYNAMIC)';
+        simBadge.className = 'slider-badge mode-auto';
+      }
+    }
+
+    if (simSlider && !window._userDraggingCurrentSlider) {
+      simSlider.value = (currOverride >= 0) ? currOverride : (t.pumpCurrentAmps || 0);
+    }
+
+    // Update active preset button
+    document.querySelectorAll('.preset-btn-row .btn-preset').forEach(btn => {
+      const pAmps = parseFloat(btn.getAttribute('data-amps'));
+      if (pAmps < 0 && currOverride < 0) {
+        btn.classList.add('active');
+      } else if (pAmps >= 0 && Math.abs(currOverride - pAmps) < 0.2) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
     // 9. Check if any override is currently active
     const activeOverrides = [];
     if (t.pumpOverride && t.pumpOverride !== 0) activeOverrides.push(t.pumpOverride === 1 ? 'Pump FORCE ON' : 'Pump FORCE OFF');
@@ -663,6 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (t.tankHighOverride && t.tankHighOverride !== 0) activeOverrides.push(t.tankHighOverride === 1 ? 'Tank High SIM FULL' : 'Tank High SIM NORM');
     if (t.tankLowOverride && t.tankLowOverride !== 0) activeOverrides.push(t.tankLowOverride === 1 ? 'Tank Low SIM LOW' : 'Tank Low SIM OK');
     if (t.tankEmptyOverride && t.tankEmptyOverride !== 0) activeOverrides.push(t.tankEmptyOverride === 1 ? 'Tank Empty SIM ALARM' : 'Tank Empty SIM OK');
+    if (currOverride >= 0) activeOverrides.push(`Current SIM ${currOverride.toFixed(1)}A`);
     if (t.overcurrentOverride && t.overcurrentOverride !== 0) activeOverrides.push(t.overcurrentOverride === 1 ? 'Overcurrent SIM TRIP' : 'Overcurrent SIM NORM');
     if (t.undercurrentOverride && t.undercurrentOverride !== 0) activeOverrides.push(t.undercurrentOverride === 1 ? 'Undercurrent SIM DRY' : 'Undercurrent SIM NORM');
     if (t.freezeOverride && t.freezeOverride !== 0) activeOverrides.push(t.freezeOverride === 1 ? 'Freeze SIM <40F' : 'Freeze SIM >=40F');
@@ -697,6 +887,65 @@ document.addEventListener('DOMContentLoaded', () => {
     if (t.hexapodEyes !== undefined && badgeEyes) {
       badgeEyes.className = t.hexapodEyes ? 'float-state-pill val-cyan' : 'float-state-pill val-amber';
       badgeEyes.innerText = t.hexapodEyes ? 'ILLUMINATED' : 'BLINKING';
+    }
+
+    // 10. MAX98357A I2S Mono Audio Amplifier Telemetry
+    const sliderVol = document.getElementById('sliderAudioVolume');
+    const valVolText = document.getElementById('valAudioVolumeText');
+    const btnMute = document.getElementById('btnAudioMuteToggle');
+    const btnHdrAudio = document.getElementById('btnHeaderAudioToggle');
+    const hdrAudioLabel = document.getElementById('headerAudioLabel');
+    const hdrAudioDot = document.getElementById('headerAudioDot');
+    const hdrAudioIcon = document.getElementById('headerAudioIcon');
+    const badgeAudio = document.getElementById('badgeI2SAudioStatus');
+
+    if (t.audioVolume !== undefined) {
+      if (valVolText) valVolText.innerText = `${t.audioVolume}%`;
+      if (sliderVol && !sliderVol.matches(':active')) {
+        sliderVol.value = t.audioVolume;
+      }
+      if (hdrAudioLabel) {
+        hdrAudioLabel.innerText = t.audioMuted ? 'Amp: MUTED' : `Amp: ${t.audioVolume}%`;
+      }
+    }
+
+    if (t.audioMuted !== undefined) {
+      if (btnMute) {
+        btnMute.className = t.audioMuted ? 'btn-action-small val-red' : 'btn-action-small';
+        btnMute.innerHTML = t.audioMuted ? '🔇 Muted (Tap Unmute)' : '🔊 Mute Off';
+      }
+      if (hdrAudioDot) {
+        hdrAudioDot.className = t.audioMuted ? 'hex-dot' : 'hex-dot on';
+      }
+      if (hdrAudioIcon) {
+        hdrAudioIcon.innerText = t.audioMuted ? '🔇' : '🔊';
+      }
+      if (btnHdrAudio) {
+        if (t.audioMuted) {
+          btnHdrAudio.classList.remove('active');
+        } else {
+          btnHdrAudio.classList.add('active');
+        }
+      }
+    }
+
+    if (badgeAudio) {
+      if (t.audioMuted) {
+        badgeAudio.style.background = 'rgba(239,68,68,0.15)';
+        badgeAudio.style.color = '#ef4444';
+        badgeAudio.style.borderColor = 'rgba(239,68,68,0.3)';
+        badgeAudio.innerText = 'Amp Muted';
+      } else if (t.audioPlaying) {
+        badgeAudio.style.background = 'rgba(0,240,255,0.2)';
+        badgeAudio.style.color = '#00f0ff';
+        badgeAudio.style.borderColor = 'rgba(0,240,255,0.4)';
+        badgeAudio.innerText = 'Synthesizing Audio...';
+      } else {
+        badgeAudio.style.background = 'rgba(34,197,94,0.15)';
+        badgeAudio.style.color = '#22c55e';
+        badgeAudio.style.borderColor = 'rgba(34,197,94,0.3)';
+        badgeAudio.innerText = 'Amp Active (16kHz)';
+      }
     }
   }
 
@@ -813,6 +1062,40 @@ document.addEventListener('DOMContentLoaded', () => {
   bindOverrideGroup('undercurrentOverrideGroup', 'setUndercurrentOverride');
   bindOverrideGroup('freezeOverrideGroup', 'setFreezeOverride');
 
+  // FCS521 Current Sensor Interactive Slider (PIN / PASSWORD PROTECTED)
+  const simSliderElem = document.getElementById('simCurrentSlider');
+  if (simSliderElem) {
+    simSliderElem.addEventListener('mousedown', () => { window._userDraggingCurrentSlider = true; });
+    simSliderElem.addEventListener('touchstart', () => { window._userDraggingCurrentSlider = true; });
+    simSliderElem.addEventListener('input', (e) => {
+      const amps = parseFloat(e.target.value);
+      const badge = document.getElementById('simCurrentBadge');
+      if (badge) {
+        badge.innerText = `${amps.toFixed(1)}A (SIMULATING)`;
+        if (amps > 18.0) badge.className = 'slider-badge mode-trip';
+        else if (amps < 4.5 && amps > 0.5) badge.className = 'slider-badge mode-dry';
+        else badge.className = 'slider-badge';
+      }
+    });
+    simSliderElem.addEventListener('change', (e) => {
+      window._userDraggingCurrentSlider = false;
+      const amps = parseFloat(e.target.value);
+      requirePassword((pwd) => {
+        sendCommand({ setCurrentOverride: amps, password: pwd });
+      });
+    });
+  }
+
+  // FCS521 Current Sensor Quick Preset Buttons (PIN / PASSWORD PROTECTED)
+  document.querySelectorAll('.preset-btn-row .btn-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const amps = parseFloat(btn.getAttribute('data-amps'));
+      requirePassword((pwd) => {
+        sendCommand({ setCurrentOverride: amps, password: pwd });
+      });
+    });
+  });
+
   // Reset All Overrides to Auto (PIN / PASSWORD PROTECTED)
   const resetAllAutoAction = () => {
     requirePassword((pwd) => {
@@ -836,6 +1119,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnSetEStop = document.getElementById('btnSettingsEStop');
   if (btnSetEStop) btnSetEStop.addEventListener('click', eStopAction);
+
+  // I2S Mono Audio Amplifier Controls
+  const sliderAudioVol = document.getElementById('sliderAudioVolume');
+  if (sliderAudioVol) {
+    sliderAudioVol.addEventListener('input', (e) => {
+      const vol = parseInt(e.target.value, 10);
+      const text = document.getElementById('valAudioVolumeText');
+      if (text) text.innerText = `${vol}%`;
+      sendCommand({ setAudioVolume: vol });
+    });
+  }
+
+  const toggleMuteAction = () => {
+    sendCommand({ toggleAudioMute: true });
+  };
+  const btnAudioMute = document.getElementById('btnAudioMuteToggle');
+  if (btnAudioMute) btnAudioMute.addEventListener('click', toggleMuteAction);
+  const btnHdrAudioToggle = document.getElementById('btnHeaderAudioToggle');
+  if (btnHdrAudioToggle) btnHdrAudioToggle.addEventListener('click', toggleMuteAction);
+
+  // Sound Effects & State Chime Test Buttons
+  document.querySelectorAll('.btn-chime-test').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const chime = btn.getAttribute('data-chime');
+      sendCommand({ playAudioChime: chime });
+    });
+  });
+
+  // Emergency Siren Test Buttons
+  document.querySelectorAll('.btn-siren-test').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const siren = btn.getAttribute('data-siren');
+      sendCommand({ playAudioSiren: siren, durationMs: 0 });
+    });
+  });
+
+  // Stop Audio Button
+  const btnStopAudio = document.getElementById('btnStopI2SAudio');
+  if (btnStopAudio) {
+    btnStopAudio.addEventListener('click', () => {
+      sendCommand({ stopAudio: true });
+    });
+  }
+
+  // Robotic Speech Phrase Buttons
+  document.querySelectorAll('.btn-phrase-test').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const phrase = btn.getAttribute('data-phrase');
+      sendCommand({ speakPhrase: phrase });
+    });
+  });
 
   // -------------------------------------------------------------------------
   // 7. Connection Modal & Mode Switchers
@@ -985,6 +1319,39 @@ document.addEventListener('DOMContentLoaded', () => {
       simulator.state.pumpRoomLowTempAlarm = true;
       simulator.state.alarmSilenced = false; // Trigger audible siren
       setSimBtnActive('simTempGroup', 'simTempCold');
+    });
+  }
+
+  // Municipal 9W Water Pressure Simulation Controls
+  const btnMuniNorm = document.getElementById('simMuniPressNorm');
+  const btnMuniLow = document.getElementById('simMuniPressLow');
+  const btnMuniZero = document.getElementById('simMuniPressZero');
+  if (btnMuniNorm && btnMuniLow && btnMuniZero) {
+    btnMuniNorm.addEventListener('click', () => {
+      simulator.state.simMuniPressureOverride = null; // Auto nominal ~58 PSI
+      setSimBtnActive('simMuniPressureGroup', 'simMuniPressNorm');
+    });
+    btnMuniLow.addEventListener('click', () => {
+      simulator.state.simMuniPressureOverride = 15.0; // Low pressure warning <20 PSI
+      setSimBtnActive('simMuniPressureGroup', 'simMuniPressLow');
+    });
+    btnMuniZero.addEventListener('click', () => {
+      simulator.state.simMuniPressureOverride = 0.0; // Municipal water outage
+      setSimBtnActive('simMuniPressureGroup', 'simMuniPressZero');
+    });
+  }
+
+  // Fill Pipe Uphill Pressure Simulation Controls
+  const btnFillAuto = document.getElementById('simFillPressAuto');
+  const btnFillHigh = document.getElementById('simFillPressHigh');
+  if (btnFillAuto && btnFillHigh) {
+    btnFillAuto.addEventListener('click', () => {
+      simulator.state.simFillPressureOverride = null; // Auto follow pump/valve state
+      setSimBtnActive('simFillPressureGroup', 'simFillPressAuto');
+    });
+    btnFillHigh.addEventListener('click', () => {
+      simulator.state.simFillPressureOverride = 190.0; // Over-pressure / blockage >180 PSI
+      setSimBtnActive('simFillPressureGroup', 'simFillPressHigh');
     });
   }
 

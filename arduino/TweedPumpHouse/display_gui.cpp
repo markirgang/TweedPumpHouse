@@ -1,4 +1,5 @@
 #include "display_gui.h"
+#include "i2s_audio.h"
 #include <Wire.h>
 
 DisplayGUI displayGui;
@@ -11,7 +12,6 @@ LGFX_Waveshare_LCD7::LGFX_Waveshare_LCD7() {
     {
         auto cfg = _panel_instance.config();
         cfg.memory_width  = 800;
-        cfg.memory_height = 480;
         cfg.panel_width   = 800;
         cfg.panel_height  = 480;
         cfg.offset_x      = 0;
@@ -118,9 +118,10 @@ DisplayGUI::DisplayGUI()
       _unlockedUntil(0),
       _pinError(false)
 {
-    // 800x480 Header Navigation Tabs
-    _tabDashboard = { 280, 5, 136, 32 };
-    _tabSettings  = { 426, 5, 136, 32 };
+    // 800x480 Header Navigation Tabs & Controls
+    _tabDashboard   = { 240, 5, 120, 32 };
+    _tabSettings    = { 368, 5, 110, 32 };
+    _btnAudioToggle = { 486, 6, 76, 30 };
 
     // 800x480 Dashboard Bottom Control Bar (Y=406, H=62)
     _btnSilenceAlarm  = { 16,  406, 180, 62 };
@@ -320,6 +321,11 @@ void DisplayGUI::handleTouchInput() {
             _touchX = tx;
             _touchY = ty;
 
+            // Tactile audio feedback on valid touch press
+            if (I2S_FEEDBACK_CLICKS_ENABLED) {
+                i2sAudio.playChime(CHIME_CLICK);
+            }
+
             // If PIN Keypad modal is active, route all touches to keypad
             if (_pinModalActive) {
                 handlePinKeypadTouch();
@@ -335,6 +341,12 @@ void DisplayGUI::handleTouchInput() {
             if (_touchX >= _tabSettings.x && _touchX <= (_tabSettings.x + _tabSettings.w) &&
                 _touchY >= _tabSettings.y && _touchY <= (_tabSettings.y + _tabSettings.h)) {
                 _currentPage = PAGE_SETTINGS;
+                return;
+            }
+            // Header Audio Speaker Mute / Unmute Toggle Button
+            if (_touchX >= _btnAudioToggle.x && _touchX <= (_btnAudioToggle.x + _btnAudioToggle.w) &&
+                _touchY >= _btnAudioToggle.y && _touchY <= (_btnAudioToggle.y + _btnAudioToggle.h)) {
+                systemController.toggleAudioMute();
                 return;
             }
 
@@ -434,32 +446,47 @@ void DisplayGUI::drawHeader(bool wifiConnected, bool bleConnected) {
     uint16_t dashTxtColor = (_currentPage == PAGE_DASHBOARD) ? TFT_BLACK : TFT_WHITE;
     _sprite.fillRoundRect(_tabDashboard.x, _tabDashboard.y, _tabDashboard.w, _tabDashboard.h, 6, dashColor);
     _sprite.setTextColor(dashTxtColor, dashColor);
-    _sprite.drawString("DASHBOARD", _tabDashboard.x + 28, _tabDashboard.y + 9);
+    _sprite.drawString("DASHBOARD", _tabDashboard.x + 20, _tabDashboard.y + 9);
 
     // Tab 2: SETTINGS
     uint16_t setBgColor = (_currentPage == PAGE_SETTINGS) ? 0x03FF : 0x2945;
     uint16_t setTxtColor = (_currentPage == PAGE_SETTINGS) ? TFT_BLACK : TFT_WHITE;
     _sprite.fillRoundRect(_tabSettings.x, _tabSettings.y, _tabSettings.w, _tabSettings.h, 6, setBgColor);
     _sprite.setTextColor(setTxtColor, setBgColor);
-    _sprite.drawString("SETTINGS", _tabSettings.x + 36, _tabSettings.y + 9);
+    _sprite.drawString("SETTINGS", _tabSettings.x + 24, _tabSettings.y + 9);
+
+    // Header Audio Speaker Mute / Status Button
+    bool audioMuted = systemController.getTelemetry().audioMuted;
+    bool audioPlaying = systemController.getTelemetry().audioPlaying;
+    uint16_t audioBg = audioMuted ? 0x9800 : (audioPlaying ? 0x03FF : 0x2945);
+    uint16_t audioTxtColor = audioMuted ? TFT_WHITE : (audioPlaying ? TFT_BLACK : TFT_WHITE);
+    _sprite.fillRoundRect(_btnAudioToggle.x, _btnAudioToggle.y, _btnAudioToggle.w, _btnAudioToggle.h, 5, audioBg);
+    _sprite.setTextColor(audioTxtColor, audioBg);
+    if (audioMuted) {
+        _sprite.drawString("MUTED", _btnAudioToggle.x + 18, _btnAudioToggle.y + 8);
+    } else if (audioPlaying) {
+        _sprite.drawString("AUDIO >", _btnAudioToggle.x + 12, _btnAudioToggle.y + 8);
+    } else {
+        _sprite.drawString("SPKR ON", _btnAudioToggle.x + 10, _btnAudioToggle.y + 8);
+    }
 
     // Security Status Indicator
     bool isUnlocked = (millis() < _unlockedUntil);
     uint16_t lockBg = isUnlocked ? 0x03E0 : 0x39E7;
-    _sprite.fillRoundRect(576, 6, 68, 30, 5, lockBg);
+    _sprite.fillRoundRect(570, 6, 68, 30, 5, lockBg);
     _sprite.setTextColor(TFT_WHITE, lockBg);
-    _sprite.drawString(isUnlocked ? "UNLOCKED" : "LOCKED", 582, 14);
+    _sprite.drawString(isUnlocked ? "UNLOCKED" : "LOCKED", 576, 14);
 
     // Network Badges (WiFi & BLE)
     uint16_t wifiBg = wifiConnected ? 0x0400 : 0x2124;
-    _sprite.fillRoundRect(652, 6, 66, 30, 5, wifiBg);
+    _sprite.fillRoundRect(644, 6, 68, 30, 5, wifiBg);
     _sprite.setTextColor(wifiConnected ? TFT_GREEN : 0x7BEF, wifiBg);
-    _sprite.drawString(wifiConnected ? "WIFI ON" : "NO-WIFI", 658, 14);
+    _sprite.drawString(wifiConnected ? "WIFI ON" : "NO-WIFI", 650, 14);
 
     uint16_t bleBg = bleConnected ? 0x01B0 : 0x2124;
-    _sprite.fillRoundRect(724, 6, 62, 30, 5, bleBg);
+    _sprite.fillRoundRect(718, 6, 66, 30, 5, bleBg);
     _sprite.setTextColor(bleConnected ? TFT_CYAN : 0x7BEF, bleBg);
-    _sprite.drawString(bleConnected ? "BLE ACT" : "BLE RDY", 730, 14);
+    _sprite.drawString(bleConnected ? "BLE ACT" : "BLE RDY", 724, 14);
 }
 
 void DisplayGUI::drawTankGraphic(const SystemTelemetry& telemetry) {
@@ -518,44 +545,51 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
     _sprite.fillRoundRect(cx, cy, cw, ch, 10, 0x2124);
     _sprite.drawRoundRect(cx, cy, cw, ch, 10, 0x632C);
 
-    // 1. Line Valve Status (cy + 14)
+    // 1. Line Valve Status (cy + 12)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("LINE VALVE:", cx + 18, cy + 14);
+    _sprite.drawString("LINE VALVE:", cx + 18, cy + 12);
     _sprite.setTextColor(telemetry.lineValve ? TFT_GREEN : 0x7BEF, 0x2124);
-    _sprite.drawString(telemetry.lineValve ? "OPEN (ENERGIZED / FILLING)" : "CLOSED (PIPE DRAINED)", cx + 180, cy + 14);
+    _sprite.drawString(telemetry.lineValve ? "OPEN (ENERGIZED / FILLING)" : "CLOSED (PIPE DRAINED)", cx + 180, cy + 12);
 
-    // 2. Water Pump Status (cy + 42)
+    // 2. Water Pump Status (cy + 34)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("WATER PUMP:", cx + 18, cy + 42);
+    _sprite.drawString("WATER PUMP:", cx + 18, cy + 34);
     if (telemetry.pumpOvercurrentTrip) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("OVERLOAD TRIP (LOCKED/JAMMED)", cx + 180, cy + 42);
+        _sprite.drawString("OVERLOAD TRIP (LOCKED/JAMMED)", cx + 180, cy + 34);
     } else if (telemetry.pumpUndercurrentTrip) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("DRY RUN TRIP (LOSS OF PRIME)", cx + 180, cy + 42);
+        _sprite.drawString("DRY RUN TRIP (LOSS OF PRIME)", cx + 180, cy + 34);
     } else if (telemetry.pumpCurrentFaultPending) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("FAULT WARNING (PULSING ALARM)", cx + 180, cy + 42);
+        _sprite.drawString("FAULT WARNING (PULSING ALARM)", cx + 180, cy + 34);
     } else if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
         _sprite.setTextColor(TFT_CYAN, 0x2124);
-        _sprite.drawString("RUNNING (BOOSTER ACTIVE)", cx + 180, cy + 42);
+        _sprite.drawString("RUNNING (BOOSTER ACTIVE)", cx + 180, cy + 34);
     } else if (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("TIMED OUT (2-HR COOLDOWN)", cx + 180, cy + 42);
+        _sprite.drawString("TIMED OUT (2-HR COOLDOWN)", cx + 180, cy + 34);
     } else if (telemetry.isFillCycleActive && telemetry.tankLow && telemetry.lineValve) {
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("PRIMING (5s LINE CHARGE DELAY)", cx + 180, cy + 42);
+        _sprite.drawString("PRIMING (5s LINE CHARGE DELAY)", cx + 180, cy + 34);
     } else {
         _sprite.setTextColor(0x7BEF, 0x2124);
-        _sprite.drawString("OFF / STANDBY READY", cx + 180, cy + 42);
+        _sprite.drawString("OFF / STANDBY READY", cx + 180, cy + 34);
     }
 
-    // 3. Pump On-Time / Duty Cycle Timers (cy + 70)
+    // 3. Pump On-Time / Duty Cycle Timers (cy + 56)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("PUMP TIMER:", cx + 18, cy + 70);
+    _sprite.drawString("PUMP TIMER:", cx + 18, cy + 56);
 
     char timerStr[64];
-    if (telemetry.pumpCurrentFaultPending) {
+    if (telemetry.municipalPressureTrip) {
+        snprintf(timerStr, sizeof(timerStr), "MUNICIPAL OUTAGE (<5 PSI TRIP)");
+        _sprite.setTextColor(TFT_RED, 0x2124);
+    } else if (telemetry.municipalPressureFaultPending) {
+        unsigned long remSec = telemetry.municipalPressureFaultRemainingMs / 1000UL;
+        snprintf(timerStr, sizeof(timerStr), "LOW MUNI PRESSURE (%02lus until shutdown)", remSec);
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+    } else if (telemetry.pumpCurrentFaultPending) {
         unsigned long remSec = telemetry.pumpCurrentFaultRemainingMs / 1000UL;
         snprintf(timerStr, sizeof(timerStr), "PRE-TRIP PULSE (%02lus until shutdown)", remSec);
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
@@ -579,56 +613,83 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         snprintf(timerStr, sizeof(timerStr), "STANDBY (READY)");
         _sprite.setTextColor(TFT_GREEN, 0x2124);
     }
-    _sprite.drawString(timerStr, cx + 180, cy + 70);
+    _sprite.drawString(timerStr, cx + 180, cy + 56);
 
-    // 4. Overcurrent Motor Protection (cy + 98)
+    // 4. Municipal 9W Line Pressure (cy + 78)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("OVERCURRENT:", cx + 18, cy + 98);
+    _sprite.drawString("MUNICIPAL (9W):", cx + 18, cy + 78);
+    char muniPressStr[64];
+    if (telemetry.municipalPressureTrip) {
+        snprintf(muniPressStr, sizeof(muniPressStr), "%.1f PSI [OUTAGE TRIP <5 PSI! PUMP OFF]", telemetry.pressureMunicipalPsi);
+        _sprite.setTextColor(TFT_RED, 0x2124);
+    } else if (telemetry.municipalPressureFaultPending) {
+        unsigned long remSec = telemetry.municipalPressureFaultRemainingMs / 1000UL;
+        snprintf(muniPressStr, sizeof(muniPressStr), "%.1f PSI [CUTOUT IN %02lus!]", telemetry.pressureMunicipalPsi, remSec);
+        _sprite.setTextColor(TFT_YELLOW, 0x2124);
+    } else if (telemetry.municipalLowPressureAlarm) {
+        snprintf(muniPressStr, sizeof(muniPressStr), "%.1f PSI [LOW PRESSURE ALERT <20!]", telemetry.pressureMunicipalPsi);
+        _sprite.setTextColor(TFT_RED, 0x2124);
+    } else {
+        snprintf(muniPressStr, sizeof(muniPressStr), "%.1f PSI (CITY SUPPLY NOMINAL)", telemetry.pressureMunicipalPsi);
+        _sprite.setTextColor(TFT_GREEN, 0x2124);
+    }
+    _sprite.drawString(muniPressStr, cx + 180, cy + 78);
+
+    // 5. Fill Pipe Uphill Pressure (cy + 100)
+    _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
+    _sprite.drawString("FILL PIPE (UPHILL):", cx + 18, cy + 100);
+    char fillPressStr[64];
+    if (telemetry.fillPipeHighPressureAlarm) {
+        snprintf(fillPressStr, sizeof(fillPressStr), "%.1f PSI [OVER-PRESSURE / BLOCKED!]", telemetry.pressureFillPipePsi);
+        _sprite.setTextColor(TFT_RED, 0x2124);
+    } else if (telemetry.pump || telemetry.pumpTimingState == PUMP_STATE_RUNNING) {
+        snprintf(fillPressStr, sizeof(fillPressStr), "%.1f PSI (BOOSTER ACTIVE / UPHILL)", telemetry.pressureFillPipePsi);
+        _sprite.setTextColor(TFT_CYAN, 0x2124);
+    } else if (telemetry.lineValve) {
+        snprintf(fillPressStr, sizeof(fillPressStr), "%.1f PSI (GRAVITY / TOP-OFF)", telemetry.pressureFillPipePsi);
+        _sprite.setTextColor(TFT_GREEN, 0x2124);
+    } else {
+        snprintf(fillPressStr, sizeof(fillPressStr), "%.1f PSI (PIPE DRAINED TO SUMP)", telemetry.pressureFillPipePsi);
+        _sprite.setTextColor(0x7BEF, 0x2124);
+    }
+    _sprite.drawString(fillPressStr, cx + 180, cy + 100);
+
+    // 6. Motor Current & FCS521-SD-10V AC Transmitter (cy + 122)
+    _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
+    _sprite.drawString("MOTOR CURRENT:", cx + 18, cy + 122);
+    char motorCurrStr[64];
     if (telemetry.pumpOvercurrentTrip) {
+        snprintf(motorCurrStr, sizeof(motorCurrStr), "%.1f A (%.2fV) [OVERLOAD JAM TRIP!]", telemetry.pumpCurrentAmps, telemetry.pumpCurrentVolts);
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("FAULT TRIPPED (OVERLOAD)", cx + 180, cy + 98);
-    } else if (telemetry.isOvercurrentPending) {
-        _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("WARNING ACTIVE (60s PULSE)", cx + 180, cy + 98);
-    } else if (telemetry.pumpOvercurrent) {
-        _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("ACTIVE (> CURRENT LIMIT)", cx + 180, cy + 98);
-    } else {
-        _sprite.setTextColor(TFT_GREEN, 0x2124);
-        _sprite.drawString("NORMAL (< CURRENT LIMIT)", cx + 180, cy + 98);
-    }
-
-    // 5. Undercurrent / Dry Run Protection (cy + 126)
-    _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("UNDERCURRENT:", cx + 18, cy + 126);
-    if (telemetry.pumpUndercurrentTrip) {
+    } else if (telemetry.pumpUndercurrentTrip) {
+        snprintf(motorCurrStr, sizeof(motorCurrStr), "%.1f A (%.2fV) [DRY RUN / PRIME LOSS!]", telemetry.pumpCurrentAmps, telemetry.pumpCurrentVolts);
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("DRY RUN TRIPPED (LOSS OF PRIME)", cx + 180, cy + 126);
-    } else if (telemetry.isUndercurrentPending) {
+    } else if (telemetry.pumpCurrentFaultPending) {
+        snprintf(motorCurrStr, sizeof(motorCurrStr), "%.1f A [PRE-TRIP PULSE (%02lus)]", telemetry.pumpCurrentAmps, telemetry.pumpCurrentFaultRemainingMs / 1000UL);
         _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("WARNING ACTIVE (60s PULSE)", cx + 180, cy + 126);
-    } else if (telemetry.pumpUndercurrent) {
-        _sprite.setTextColor(TFT_YELLOW, 0x2124);
-        _sprite.drawString("DRY RUN DETECTED", cx + 180, cy + 126);
-    } else {
+    } else if (telemetry.pumpTimingState == PUMP_STATE_RUNNING || telemetry.pump) {
+        snprintf(motorCurrStr, sizeof(motorCurrStr), "%.1f A (%.2fV) [NORMAL RUNNING LOAD]", telemetry.pumpCurrentAmps, telemetry.pumpCurrentVolts);
         _sprite.setTextColor(TFT_GREEN, 0x2124);
-        _sprite.drawString("NORMAL (POSITIVE PRIME OK)", cx + 180, cy + 126);
+    } else {
+        snprintf(motorCurrStr, sizeof(motorCurrStr), "%.1f A (%.2fV) [STANDBY READY]", telemetry.pumpCurrentAmps, telemetry.pumpCurrentVolts);
+        _sprite.setTextColor(0x7BEF, 0x2124);
     }
+    _sprite.drawString(motorCurrStr, cx + 180, cy + 122);
 
-    // 6. Freeze Sensor Switch (<40°F) (cy + 154)
+    // 7. Freeze Sensor Switch (<40°F) (cy + 144)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("FREEZE SENSOR:", cx + 18, cy + 154);
+    _sprite.drawString("FREEZE SENSOR:", cx + 18, cy + 144);
     if (telemetry.freezeSensor) {
         _sprite.setTextColor(TFT_RED, 0x2124);
-        _sprite.drawString("< 40°F FREEZE HAZARD (PIPE DRAIN ACTIVE)", cx + 180, cy + 154);
+        _sprite.drawString("< 40°F FREEZE HAZARD (PIPE DRAIN ACTIVE)", cx + 180, cy + 144);
     } else {
         _sprite.setTextColor(TFT_GREEN, 0x2124);
-        _sprite.drawString(">= 40°F WARM (NORMAL TOP-OFF)", cx + 180, cy + 154);
+        _sprite.drawString(">= 40°F WARM (NORMAL TOP-OFF)", cx + 180, cy + 144);
     }
 
-    // 7. DHT11 Room Climate & Siren Status (cy + 182)
+    // 8. DHT11 Room Climate & Siren Status (cy + 166)
     _sprite.setTextColor(TFT_LIGHTGRAY, 0x2124);
-    _sprite.drawString("PUMP ROOM CLIMATE:", cx + 18, cy + 182);
+    _sprite.drawString("PUMP ROOM CLIMATE:", cx + 18, cy + 166);
     char dhtStr[64];
     if (telemetry.dhtValid) {
         if (telemetry.pumpRoomLowTempAlarm) {
@@ -642,15 +703,15 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         snprintf(dhtStr, sizeof(dhtStr), "INITIALIZING SENSOR...");
         _sprite.setTextColor(TFT_WHITE, 0x2124);
     }
-    _sprite.drawString(dhtStr, cx + 180, cy + 182);
+    _sprite.drawString(dhtStr, cx + 180, cy + 166);
 
-    // 8. Alarm / Safety Status Banner (cy + 224, height 96)
+    // 9. Alarm / Safety Status Banner (cy + 196, height 128)
     uint16_t bannerBg = 0x0BC4;
-    if (telemetry.pumpOvercurrentTrip) {
+    if (telemetry.municipalPressureTrip || telemetry.pumpOvercurrentTrip) {
         bannerBg = TFT_RED;
-    } else if (telemetry.pumpUndercurrentTrip) {
+    } else if (telemetry.municipalPressureFaultPending || telemetry.pumpUndercurrentTrip || telemetry.pumpCurrentFaultPending) {
         bannerBg = 0xFD20;
-    } else if (telemetry.pumpCurrentFaultPending) {
+    } else if (telemetry.municipalLowPressureAlarm || telemetry.fillPipeHighPressureAlarm) {
         bannerBg = 0xFD20;
     } else if (telemetry.alarm || telemetry.pumpRoomLowTempAlarm || telemetry.tankEmpty) {
         bannerBg = TFT_RED;
@@ -660,9 +721,18 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         bannerBg = 0x8400;
     }
 
-    _sprite.fillRoundRect(cx + 14, cy + 220, cw - 28, 98, 8, bannerBg);
+    _sprite.fillRoundRect(cx + 14, cy + 196, cw - 28, 128, 8, bannerBg);
     _sprite.setTextColor(TFT_WHITE, bannerBg);
-    if (telemetry.pumpOvercurrentTrip) {
+    if (telemetry.municipalPressureTrip) {
+        _sprite.drawString("! CRITICAL: MUNICIPAL WATER OUTAGE (<5 PSI) !", cx + 26, cy + 236);
+        _sprite.drawString("Booster pump shut down to prevent dry cavitation. Verify supply and press RESET.", cx + 26, cy + 262);
+    } else if (telemetry.municipalPressureFaultPending) {
+        _sprite.setTextColor(TFT_BLACK, bannerBg);
+        _sprite.drawString("! WARNING: MUNICIPAL PRESSURE < 5 PSI !", cx + 22, cy + 234);
+        char warnStr[80];
+        snprintf(warnStr, sizeof(warnStr), "Low suction pressure: Pump shutdown in %02lu seconds...", telemetry.municipalPressureFaultRemainingMs / 1000UL);
+        _sprite.drawString(warnStr, cx + 22, cy + 262);
+    } else if (telemetry.pumpOvercurrentTrip) {
         _sprite.drawString("! CRITICAL: MOTOR OVERCURRENT / JAM TRIP !", cx + 26, cy + 236);
         _sprite.drawString("Water pump is locked off for motor protection. Press RESET to clear.", cx + 26, cy + 262);
     } else if (telemetry.pumpUndercurrentTrip) {
@@ -692,20 +762,21 @@ void DisplayGUI::drawActuatorsAndClimate(const SystemTelemetry& telemetry) {
         _sprite.drawString("PUMP DUTY CYCLE TIMEOUT: 2-HOUR COOLDOWN IN EFFECT", cx + 26, cy + 246);
         _sprite.drawString("Tap RESET PUMP / TIMEOUT below to override cooldown immediately.", cx + 26, cy + 270);
     } else {
-        _sprite.drawString("SYSTEM NORMAL - TWEED WATER SUPPLY SECURE", cx + 32, cy + 256);
+        _sprite.drawString("SYSTEM STATUS NOMINAL - AUTOMATIC SUPERVISION ACTIVE", cx + 26, cy + 246);
+        _sprite.drawString("All field float switches, pressure transducers & current sensors healthy.", cx + 26, cy + 270);
     }
 }
 
 void DisplayGUI::drawControlButtons(const SystemTelemetry& telemetry) {
     // 1. Silence Alarm Button (X=16, W=180, H=62)
-    uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip || telemetry.pumpCurrentFaultPending || telemetry.pumpRoomLowTempAlarm) ? TFT_RED : 0x39E7;
+    uint16_t silenceColor = (telemetry.alarm || telemetry.pumpOvercurrentTrip || telemetry.pumpUndercurrentTrip || telemetry.municipalPressureTrip || telemetry.pumpCurrentFaultPending || telemetry.municipalPressureFaultPending || telemetry.pumpRoomLowTempAlarm) ? TFT_RED : 0x39E7;
     _sprite.fillRoundRect(_btnSilenceAlarm.x, _btnSilenceAlarm.y, _btnSilenceAlarm.w, _btnSilenceAlarm.h, 8, silenceColor);
     _sprite.setTextColor(TFT_WHITE, silenceColor);
     _sprite.drawString("SILENCE ALARM", _btnSilenceAlarm.x + 36, _btnSilenceAlarm.y + 14);
     _sprite.drawString(telemetry.alarmSilenced ? "(MUTED)" : "(MUTE SIREN)", _btnSilenceAlarm.x + 44, _btnSilenceAlarm.y + 36);
 
     // 2. Reset Pump & Fault Button (X=208, W=180, H=62)
-    bool hasFaultOrTimeout = (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN || telemetry.pumpOvercurrentTrip || telemetry.pumpUndercurrentTrip || telemetry.pumpCurrentFaultPending);
+    bool hasFaultOrTimeout = (telemetry.pumpTimingState == PUMP_STATE_COOLDOWN || telemetry.pumpOvercurrentTrip || telemetry.pumpUndercurrentTrip || telemetry.municipalPressureTrip || telemetry.pumpCurrentFaultPending || telemetry.municipalPressureFaultPending);
     uint16_t resetColor = hasFaultOrTimeout ? 0xFD20 : 0x2144;
     _sprite.fillRoundRect(_btnResetPump.x, _btnResetPump.y, _btnResetPump.w, _btnResetPump.h, 8, resetColor);
     _sprite.setTextColor(TFT_WHITE, resetColor);
@@ -778,15 +849,19 @@ void DisplayGUI::drawSettingsPage(const SystemTelemetry& telemetry) {
     uint16_t emptyBg = (telemetry.tankEmptyOverride == MODE_AUTO) ? 0x1B2E : TFT_RED;
     drawTile(_btnSetEmpty, "TANK EMPTY (LOW FLOAT)", emptyStr, emptyBg, telemetry.tankEmpty ? "Sensor Reading: CRITICAL EMPTY" : "Sensor Reading: NORMAL OK");
 
-    // 6. Overcurrent Sensor Override
+    // 6. Overcurrent Protection Override (FCS521-SD-10V)
+    char ocDesc[64];
+    snprintf(ocDesc, sizeof(ocDesc), "Current: %.1fA (Trip > 18.0A)", telemetry.pumpCurrentAmps);
     const char* ocStr = (telemetry.overcurrentOverride == MODE_AUTO) ? "AUTO" : ((telemetry.overcurrentOverride == MODE_FORCE_ON) ? "SIM TRIP" : "SIM NORM");
     uint16_t ocBg = (telemetry.overcurrentOverride == MODE_AUTO) ? 0x1B2E : TFT_RED;
-    drawTile(_btnSetOvercurrent, "OVERCURRENT SENSOR", ocStr, ocBg, (telemetry.pumpOvercurrent || telemetry.pumpOvercurrentTrip) ? "Fault State: OVERLOAD" : "Fault State: NORMAL");
+    drawTile(_btnSetOvercurrent, "OVERCURRENT (FCS521)", ocStr, ocBg, ocDesc);
 
-    // 7. Undercurrent Sensor Override
+    // 7. Undercurrent Protection Override (FCS521-SD-10V)
+    char ucDesc[64];
+    snprintf(ucDesc, sizeof(ucDesc), "Current: %.1fA (Dry < 4.5A)", telemetry.pumpCurrentAmps);
     const char* ucStr = (telemetry.undercurrentOverride == MODE_AUTO) ? "AUTO" : ((telemetry.undercurrentOverride == MODE_FORCE_ON) ? "SIM DRY" : "SIM NORM");
     uint16_t ucBg = (telemetry.undercurrentOverride == MODE_AUTO) ? 0x1B2E : 0xFD20;
-    drawTile(_btnSetUndercurrent, "UNDERCURRENT SENSOR", ucStr, ucBg, (telemetry.pumpUndercurrent || telemetry.pumpUndercurrentTrip) ? "Fault State: DRY RUN" : "Fault State: NORMAL");
+    drawTile(_btnSetUndercurrent, "UNDERCURRENT (FCS521)", ucStr, ucBg, ucDesc);
 
     // 8. Freeze Sensor Override
     const char* fzStr = (telemetry.freezeOverride == MODE_AUTO) ? "AUTO" : ((telemetry.freezeOverride == MODE_FORCE_ON) ? "SIM <40F" : "SIM >=40F");

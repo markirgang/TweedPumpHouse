@@ -42,6 +42,11 @@
         <span class="hex-label">Hexapod: ON</span>
         <span class="hex-dot on"></span>
       </button>
+      <button class="btn-header-hexapod active" id="btnHeaderAudioToggle" title="Toggle I2S Audio Amplifier Mute" style="border-color: rgba(0, 240, 255, 0.4);">
+        <span class="hex-icon" id="headerAudioIcon">🔊</span>
+        <span class="hex-label" id="headerAudioLabel">Amp: 80%</span>
+        <span class="hex-dot on" id="headerAudioDot"></span>
+      </button>
       <button class="btn-lock-status locked" id="btnLockStatus" title="Click to unlock or lock controls">
         <span id="lockIcon">🔒</span>
         <span id="lockText">Controls Locked</span>
@@ -292,32 +297,122 @@
         </section>
 
         <!-- Card 3: Pump Motor Current Monitoring -->
+        <!-- Card 3: Pump Motor Current Monitoring (FCS521-SD-10V via ADS1115 I2C) -->
         <section class="card">
           <div class="card-title">
-            <span>Pump Current Sensors</span>
-            <span class="card-badge">CON1 Inputs</span>
+            <span>Pump AC Current Monitoring</span>
+            <span class="card-badge" id="badgeCurrentSource">FCS521-SD-10V (0-50A)</span>
           </div>
-          <div class="tank-status-list">
-            <!-- Overcurrent -->
-            <div class="float-row">
-              <div class="float-left">
-                <div class="float-indicator active-green" id="currentOverInd"></div>
-                <span class="float-name">Overcurrent (Motor Overload)</span>
+          
+          <div class="current-gauge-container">
+            <div class="current-main-row">
+              <div class="current-icon-wrap">
+                <svg viewBox="0 0 24 24"><path d="M11 15H6L13 1V9H18L11 23V15Z"/></svg>
               </div>
-              <div class="float-state-pill val-green" id="currentOverState">NORMAL (&lt; LIMIT)</div>
+              <div class="current-readings">
+                <div class="current-digits" id="valPumpCurrent">0.0 <span class="unit">A</span></div>
+                <div class="current-sub" id="valPumpCurrentVolts">Sensor: 0.00V (0-10V)</div>
+              </div>
+              <div class="pressure-status-badge val-grey" id="badgeCurrentStatus">STANDBY</div>
             </div>
-            <!-- Undercurrent -->
-            <div class="float-row">
-              <div class="float-left">
-                <div class="float-indicator active-green" id="currentUnderInd"></div>
-                <span class="float-name">Undercurrent (Dry Run Sensor)</span>
+
+            <!-- Dynamic Current Load Bar (0 - 50A) -->
+            <div class="current-bar-wrapper">
+              <div class="current-bar-labels">
+                <span>0A</span>
+                <span class="threshold-label dry">Dry Run &lt;4.5A</span>
+                <span class="threshold-label nominal">Nominal (8-14A)</span>
+                <span class="threshold-label trip">Overload &gt;18A</span>
+                <span>50A</span>
               </div>
-              <div class="float-state-pill val-green" id="currentUnderState">NORMAL (PRIME OK)</div>
+              <div class="current-bar-track">
+                <!-- Zone color markers -->
+                <div class="current-zone zone-dry" style="left:0%; width:9%;"></div>
+                <div class="current-zone zone-nominal" style="left:9%; width:27%;"></div>
+                <div class="current-zone zone-overload" style="left:36%; width:64%;"></div>
+                <!-- Needle / Active bar fill -->
+                <div class="current-bar-fill" id="barPumpCurrent" style="width: 0%;"></div>
+                <div class="current-bar-needle" id="needlePumpCurrent" style="left: 0%;"></div>
+              </div>
+            </div>
+
+            <div class="current-limits-grid">
+              <div class="limit-box">
+                <span class="limit-title">Cavitation / Dry Run</span>
+                <span class="limit-val" id="txtDryThreshold">&lt; 4.5 Amps</span>
+              </div>
+              <div class="limit-box">
+                <span class="limit-title">Nominal Operating</span>
+                <span class="limit-val" id="txtNominalRange">8.0 - 14.0 Amps</span>
+              </div>
+              <div class="limit-box">
+                <span class="limit-title">Overload Jam Cutout</span>
+                <span class="limit-val" id="txtOverThreshold">&gt; 18.0 Amps</span>
+              </div>
             </div>
           </div>
+
           <div class="current-summary-box" id="currentSummaryBox">
             <svg viewBox="0 0 24 24"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z"/></svg>
-            <span id="currentSummaryText">Motor load protection active &amp; healthy</span>
+            <span id="currentSummaryText">FCS521-SD-10V AC current transmitter active &amp; healthy</span>
+          </div>
+        </section>
+
+        <!-- Card 3B: Pipeline Pressure Transducers (ADS1115 16-Bit I2C ADC) -->
+        <section class="card">
+          <div class="card-title">
+            <span>Water Line Pressure Monitoring</span>
+            <span class="card-badge" id="badgeAdsStatus">ADS1115 I2C (0x48)</span>
+          </div>
+
+          <div class="pressure-gauges-grid">
+            <!-- Municipal 9W Pressure -->
+            <div class="pressure-box" id="boxMuniPressure">
+              <div class="pressure-header">
+                <div class="pressure-icon-wrap municipal">
+                  <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 18.9,16.5 17.2,18C15.8,16.8 14,16 12,16C10,16 8.2,16.8 6.8,18C5.1,16.5 4,14.4 4,12A8,8 0 0,1 12,4Z"/></svg>
+                </div>
+                <div class="pressure-titles">
+                  <h4>Municipal Water (Route 9W)</h4>
+                  <span class="pressure-sub">Suction Supply Line (0 - 100 PSI)</span>
+                </div>
+              </div>
+              <div class="pressure-reading-row">
+                <div class="pressure-digits" id="valMuniPressure">58.0 <span class="unit">PSI</span></div>
+                <div class="pressure-status-badge val-green" id="badgeMuniPressure">NORMAL</div>
+              </div>
+              <div class="pressure-bar-bg">
+                <div class="pressure-bar-fill municipal" id="barMuniPressure" style="width: 58%;"></div>
+              </div>
+              <div class="pressure-footer">
+                <span id="txtMuniVolts">Sensor: 2.82V</span>
+                <span>Normal: 40 - 80 PSI</span>
+              </div>
+            </div>
+
+            <!-- Fill Pipe Uphill Pressure -->
+            <div class="pressure-box" id="boxFillPressure">
+              <div class="pressure-header">
+                <div class="pressure-icon-wrap uphill">
+                  <svg viewBox="0 0 24 24"><path d="M4 6.5C4 5.12 5.12 4 6.5 4S9 5.12 9 6.5C9 7.88 7.88 9 6.5 9S4 7.88 4 6.5M16 4C14.9 4 14 4.9 14 6V11H12V7C12 5.9 11.1 5 10 5H8C6.9 5 6 5.9 6 7V17C6 18.1 6.9 19 8 19H10C11.1 19 12 18.1 12 17V13H14V18C14 19.1 14.9 20 16 20H18C19.1 20 20 19.1 20 18V6C20 4.9 19.1 4 18 4H16Z"/></svg>
+                </div>
+                <div class="pressure-titles">
+                  <h4>Fill Pipe (Tweed Uphill)</h4>
+                  <span class="pressure-sub">Booster Discharge Line (0 - 200 PSI)</span>
+                </div>
+              </div>
+              <div class="pressure-reading-row">
+                <div class="pressure-digits" id="valFillPressure">0.0 <span class="unit">PSI</span></div>
+                <div class="pressure-status-badge val-grey" id="badgeFillPressure">DRAINED</div>
+              </div>
+              <div class="pressure-bar-bg">
+                <div class="pressure-bar-fill uphill" id="barFillPressure" style="width: 0%;"></div>
+              </div>
+              <div class="pressure-footer">
+                <span id="txtFillVolts">Sensor: 0.50V</span>
+                <span id="txtFillRange">Max Safe: 180 PSI</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -501,25 +596,55 @@
           </div>
         </section>
 
-        <!-- 3. Motor Current & Environmental Sensor Overrides -->
+        <!-- 3. FCS521-SD-10V Motor Current & Environmental Sensor Simulator / Overrides -->
         <section class="settings-card">
           <div class="settings-card-header">
             <div class="header-left">
-              <svg viewBox="0 0 24 24"><path d="M13,14H11V9H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M11 15H6L13 1V9H18L11 23V15Z"/></svg>
               <div>
-                <h3>Motor Protection &amp; Environmental Overrides</h3>
-                <p>Test current overload trip, dry-run undercurrent shutoff, and freeze protection</p>
+                <h3>FCS521 Current Sensor &amp; Motor Protection Simulator</h3>
+                <p>Inject AC motor current (0-50A) to test dry-run cavitation trips, overload shutoffs, and 60s warning pulses</p>
               </div>
             </div>
-            <span class="settings-pill-badge">Protection</span>
+            <span class="settings-pill-badge">FCS521 0-50A</span>
           </div>
 
           <div class="settings-controls-list">
-            <!-- Overcurrent -->
+            <!-- Interactive Current Slider & Presets -->
+            <div class="setting-row current-simulator-row">
+              <div class="setting-meta">
+                <h4>Simulated Pump AC Current (FCS521-SD-10V)</h4>
+                <p>Adjust current level to evaluate real-time trip state machines and UI alarms</p>
+              </div>
+              <div class="current-slider-container">
+                <div class="slider-val-row">
+                  <span class="slider-title">Injected Load:</span>
+                  <span class="slider-badge" id="simCurrentBadge">AUTO (DYNAMIC)</span>
+                </div>
+                <input type="range" class="current-range-slider" id="simCurrentSlider" min="0" max="50" step="0.5" value="0">
+                <div class="slider-ticks">
+                  <span>0A</span>
+                  <span>10A</span>
+                  <span>20A</span>
+                  <span>30A</span>
+                  <span>40A</span>
+                  <span>50A</span>
+                </div>
+                <div class="preset-btn-row">
+                  <button class="btn-preset active" id="btnPresetAuto" data-amps="-1">AUTO (HARDWARE)</button>
+                  <button class="btn-preset" data-amps="0.0">0.0A (OFF)</button>
+                  <button class="btn-preset btn-preset-dry" data-amps="3.2">3.2A (DRY RUN)</button>
+                  <button class="btn-preset btn-preset-norm" data-amps="11.4">11.4A (NOMINAL)</button>
+                  <button class="btn-preset btn-preset-trip" data-amps="24.0">24.0A (OVERLOAD)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Overcurrent Override Fallback -->
             <div class="setting-row">
               <div class="setting-meta">
-                <h4>Pump Overcurrent Sensor (GPIO 34)</h4>
-                <p>Simulates motor overload/jam to test immediate trip interlock</p>
+                <h4>Force Overcurrent Overload Trip</h4>
+                <p>Simulates locked rotor / mechanical motor overload trip</p>
               </div>
               <div class="btn-group-toggle" id="overcurrentOverrideGroup">
                 <button class="btn-toggle active" data-mode="0">AUTO</button>
@@ -528,11 +653,11 @@
               </div>
             </div>
 
-            <!-- Undercurrent -->
+            <!-- Undercurrent Override Fallback -->
             <div class="setting-row">
               <div class="setting-meta">
-                <h4>Pump Undercurrent Sensor (GPIO 36)</h4>
-                <p>Simulates suction cavitation / dry-run to test pump seal protection</p>
+                <h4>Force Dry Run Cavitation Trip</h4>
+                <p>Simulates loss of prime / empty suction pipe cavitation trip</p>
               </div>
               <div class="btn-group-toggle" id="undercurrentOverrideGroup">
                 <button class="btn-toggle active" data-mode="0">AUTO</button>
@@ -544,7 +669,7 @@
             <!-- Freeze Sensor -->
             <div class="setting-row">
               <div class="setting-meta">
-                <h4>Outside Freeze Sensor (GPIO 35)</h4>
+                <h4>Outside Freeze Sensor (GPIO 35 / MCP GPA3)</h4>
                 <p>Simulates sub-40°F weather to verify fill line freeze isolation</p>
               </div>
               <div class="btn-group-toggle" id="freezeOverrideGroup">
@@ -723,6 +848,137 @@
           </div>
         </section>
 
+        <!-- 7. I2S Mono Audio Amplifier (MAX98357A / Class-D DAC) & Sound Cues -->
+        <section class="settings-card">
+          <div class="settings-card-header">
+            <div class="header-left">
+              <svg viewBox="0 0 24 24"><path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16.02C15.5,15.29 16.5,13.77 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/></svg>
+              <div>
+                <h3>MAX98357A I2S Mono Audio Amplifier</h3>
+                <p>Direct ESP32-S3 hardware I2S DMA synthesizer for state chimes, emergency sirens, touch feedback, and robotic mascot voice</p>
+              </div>
+            </div>
+            <span class="settings-pill-badge" id="badgeI2SAudioStatus" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)">Amp Active (16kHz)</span>
+          </div>
+
+          <div class="settings-controls-list">
+            <!-- Hardware Pin Map Info Bar -->
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 8px; padding: 10px 16px; margin-bottom: 12px; font-size: 0.82rem; color: #94a3b8; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+              <span><strong>Hardware Pins:</strong> BCLK: <code>GPIO 12</code> | LRC: <code>GPIO 11</code> | DIN: <code>GPIO 13</code></span>
+              <span><strong>Format:</strong> 16-Bit Stereo DMA (L=R) @ 16,000 Hz</span>
+            </div>
+
+            <!-- Volume Slider & Mute Row -->
+            <div class="setting-switch-row" style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;">
+              <div class="setting-meta" style="flex: 1; max-width: 320px;">
+                <h4 style="display:flex; align-items:center; gap:8px;">
+                  <span id="ampVolumeIcon">🔊</span> Master Volume (<span id="valAudioVolumeText">80%</span>)
+                </h4>
+                <p>Adjust hardware output gain for chimes, speech, and alarms</p>
+              </div>
+              <div style="display:flex; align-items:center; gap:16px; flex:1; justify-content:flex-end;">
+                <input type="range" id="sliderAudioVolume" min="0" max="100" value="80" style="flex:1; max-width:240px; accent-color: var(--cyan-water); cursor:pointer;">
+                <button class="btn-action-small" id="btnAudioMuteToggle" style="min-width:110px; padding:8px 14px; font-weight:700;">
+                  🔊 Mute Off
+                </button>
+              </div>
+            </div>
+
+            <!-- Sound Effects & State Chimes -->
+            <div style="margin: 12px 0;">
+              <h4 style="font-size:0.9rem; color:#e2e8f0; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>🎵</span> Sound Effects &amp; Operational Chimes
+              </h4>
+              <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px;">
+                <button class="btn-action-small btn-chime-test" data-chime="startup" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(2,132,199,0.15);">
+                  ✨ Startup Arpeggio
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="valve_open" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(2,132,199,0.15);">
+                  💧 Valve Opening (Dual)
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="pump_start" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(2,132,199,0.15);">
+                  ⚡ Booster Start (Tri-tone)
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="tank_full" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.4);">
+                  🎉 Tank Full Sequence
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="warning" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(234,179,8,0.15); border-color: rgba(234,179,8,0.4);">
+                  ⚠️ Pre-Trip Warning Chirp
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="fault" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4);">
+                  🛑 Fault Alert Triad
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="silence" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(148,163,184,0.15);">
+                  🔕 Silence Acknowledge
+                </button>
+                <button class="btn-action-small btn-chime-test" data-chime="click" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(148,163,184,0.15);">
+                  👆 Tactile Touch Click
+                </button>
+              </div>
+            </div>
+
+            <!-- Emergency Sirens & Siren Triggers -->
+            <div style="margin: 14px 0;">
+              <h4 style="font-size:0.9rem; color:#ef4444; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>🚨</span> Continuous Emergency Sirens (Acoustic Alarms)
+              </h4>
+              <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px;">
+                <button class="btn-action-small btn-siren-test" data-siren="tank_empty" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(239,68,68,0.25); border-color: #ef4444; color:#fca5a5;">
+                  🌊 Tank Empty Wail
+                </button>
+                <button class="btn-action-small btn-siren-test" data-siren="freeze" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(14,165,233,0.25); border-color: #38bdf8; color:#7dd3fc;">
+                  ❄️ Freeze Warble Sweep
+                </button>
+                <button class="btn-action-small btn-siren-test" data-siren="fault" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(234,179,8,0.25); border-color: #eab308; color:#fde047;">
+                  ⚙️ Pump Fault Pulse
+                </button>
+                <button class="btn-action-small btn-siren-test" data-siren="low_temp" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(168,85,247,0.25); border-color: #c084fc; color:#d8b4fe;">
+                  🌡️ Room Low Temp Siren
+                </button>
+                <button class="btn-action-small" id="btnStopI2SAudio" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(239,68,68,0.8); color:#fff; font-weight:700; grid-column: span 2;">
+                  ⏹ Stop Active Audio / Siren
+                </button>
+              </div>
+            </div>
+
+            <!-- On-Chip Synthetic Robotic Speech Phrases -->
+            <div style="margin: 14px 0;">
+              <h4 style="font-size:0.9rem; color:var(--cyan-water); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>🤖</span> Hexabot On-Chip Synthetic Robotic Speech (Formant Synthesizer)
+              </h4>
+              <p style="font-size:0.78rem; color:#94a3b8; margin-top:-4px; margin-bottom:8px;">
+                Plays multi-formant robotic vocalizations and automatically synchronizes physical mouth pulses and ocular eye blinks.
+              </p>
+              <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
+                <button class="btn-action-small btn-phrase-test" data-phrase="nominal" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "System Nominal"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="water_low" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Water Low / Pumping"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="tank_full" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Holding Tank Full"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="freeze" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Freeze Warning Active"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="critical_alarm" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Critical Alarm: Empty"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="silenced" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Alarm Silenced"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="fault_cleared" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Fault Cleared / Ready"
+                </button>
+                <button class="btn-action-small btn-phrase-test" data-phrase="low_temp" style="padding: 8px 10px; font-size: 0.8rem;">
+                  🗣 "Low Room Temperature"
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
 
@@ -780,6 +1036,23 @@
               <button class="btn-sim active" id="simTempNorm">68°F (Normal)</button>
               <button class="btn-sim" id="simTempLow">50°F (Low Temp Alarm &lt;55°F)</button>
               <button class="btn-sim" id="simTempCold">35°F (Severe Freeze)</button>
+            </div>
+          </div>
+
+          <div class="sim-box">
+            <label>Municipal 9W Water Pressure (ADS1115 A0)</label>
+            <div class="sim-btn-group" id="simMuniPressureGroup">
+              <button class="btn-sim active" id="simMuniPressNorm">60 PSI (Nominal)</button>
+              <button class="btn-sim" id="simMuniPressLow">15 PSI (Low Alert &lt;20)</button>
+              <button class="btn-sim" id="simMuniPressZero">0 PSI (Outage / Dry)</button>
+            </div>
+          </div>
+
+          <div class="sim-box">
+            <label>Fill Pipe Uphill Pressure (ADS1115 A1)</label>
+            <div class="sim-btn-group" id="simFillPressureGroup">
+              <button class="btn-sim active" id="simFillPressAuto">Auto (Follows Pump/Valve)</button>
+              <button class="btn-sim" id="simFillPressHigh">190 PSI (Over-Pressure &gt;180)</button>
             </div>
           </div>
         </div>

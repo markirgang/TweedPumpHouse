@@ -119,10 +119,40 @@ class HardwareSimulator {
       
       fillCycleActive: false,
 
+      // Pipeline Pressure Transducers (ADS1115 16-Bit I2C ADC)
+      pressureMunicipalPsi: 58.0,
+      pressureFillPipePsi: 0.0,
+      pressureMunicipalVolts: 2.82,
+      pressureFillPipeVolts: 0.50,
+      ads1115Detected: true,
+      municipalLowPressureAlarm: false,
+      fillPipeHighPressureAlarm: false,
+      simMuniPressureOverride: null,
+      simFillPressureOverride: null,
+
+      // FCS521-SD-10V AC Current Transmitter (0-50A via ADS1115 AIN2)
+      pumpCurrentAmps: 0.0,
+      pumpCurrentVolts: 0.0,
+      currentOverrideAmps: -1.0, // -1 = AUTO mode
+      overcurrentThresholdAmps: 18.0,
+      undercurrentThresholdAmps: 4.5,
+      simCurrentOverrideAmps: null,
+
+      // Municipal Low Pressure (<5 PSI) 30-Second Cutout Safety Protection
+      municipalPressureTrip: false,
+      municipalPressureFaultPending: false,
+      municipalPressureFaultRemainingSec: 0,
+
       // Hexapod Robotic Mascot States
       hexapodMouth: false,
       hexapodEyes: true,
-      hexapodSpeechSync: true
+      hexapodSpeechSync: true,
+
+      // I2S Mono Audio Amplifier States
+      audioVolume: 80,
+      audioMuted: false,
+      audioPlaying: false,
+      i2sAudioEnabled: true
     };
 
     this.lineValveOpenSec = 0;
@@ -133,16 +163,49 @@ class HardwareSimulator {
   tick() {
     if (!this.isRunning) return;
 
-    // Apply software sensor overrides
+    const isPumpRunning = (this.state.pump || this.state.pumpTimingState === 1 || this.state.pumpOverride === 1);
+
+    // 0. Realistic AC Motor Current Simulation (FCS521-SD-10V 0-50A)
+    let currentAmps = 0.0;
+    if (this.state.simCurrentOverrideAmps !== null && this.state.simCurrentOverrideAmps !== undefined && this.state.simCurrentOverrideAmps >= 0) {
+      currentAmps = this.state.simCurrentOverrideAmps;
+    } else if (this.state.currentOverrideAmps >= 0) {
+      currentAmps = this.state.currentOverrideAmps;
+    } else if (isPumpRunning) {
+      if (this.state.pumpRunElapsedSec <= 1) {
+        // Inrush current spike (~22.5A for the first second)
+        currentAmps = 22.5 + (Math.sin(Date.now() / 100) * 1.0);
+      } else {
+        // Nominal running current with subtle motor vibration (~11.2A)
+        currentAmps = 11.2 + (Math.sin(Date.now() / 600) * 0.35);
+      }
+    } else {
+      currentAmps = 0.0;
+    }
+
+    this.state.pumpCurrentAmps = Math.max(0, Math.min(50, currentAmps));
+    this.state.pumpCurrentVolts = (this.state.pumpCurrentAmps / 50.0) * 10.0;
+
+    // Apply software sensor overrides & evaluate FCS521 current protection
     let effectiveHigh = (this.state.tankHighOverride === 1) ? false : ((this.state.tankHighOverride === 2) ? true : this.state.tankHigh);
     let effectiveLow = (this.state.tankLowOverride === 1) ? true : ((this.state.tankLowOverride === 2) ? false : this.state.tankLow);
     let effectiveEmpty = (this.state.tankEmptyOverride === 1) ? true : ((this.state.tankEmptyOverride === 2) ? false : this.state.tankEmpty);
     let effectiveFreeze = (this.state.freezeOverride === 1) ? true : ((this.state.freezeOverride === 2) ? false : this.state.freezeSensor);
-    let effectiveOvercurrent = (this.state.overcurrentOverride === 1) ? true : ((this.state.overcurrentOverride === 2) ? false : this.state.pumpOvercurrent);
-    let effectiveUndercurrent = (this.state.undercurrentOverride === 1) ? true : ((this.state.undercurrentOverride === 2) ? false : this.state.pumpUndercurrent);
+    
+    let effectiveOvercurrent = false;
+    if (this.state.overcurrentOverride === 1) effectiveOvercurrent = true;
+    else if (this.state.overcurrentOverride === 2) effectiveOvercurrent = false;
+    else effectiveOvercurrent = (this.state.pumpCurrentAmps > this.state.overcurrentThresholdAmps);
 
-    // 0. 5-Second Current Stabilization & 1-Minute Fault Warning / Pulsing Delay Logic
-    const isPumpRunning = (this.state.pump || this.state.pumpTimingState === 1 || this.state.pumpOverride === 1);
+    let effectiveUndercurrent = false;
+    if (this.state.undercurrentOverride === 1) effectiveUndercurrent = true;
+    else if (this.state.undercurrentOverride === 2) effectiveUndercurrent = false;
+    else effectiveUndercurrent = (isPumpRunning && this.state.pumpCurrentAmps < this.state.undercurrentThresholdAmps);
+
+    this.state.pumpOvercurrent = effectiveOvercurrent;
+    this.state.pumpUndercurrent = effectiveUndercurrent;
+
+    // 0A. 5-Second Current Stabilization & 1-Minute Fault Warning / Pulsing Delay Logic
     // Allow 5 seconds for pump motor startup inrush current and suction prime to stabilize before evaluating faults
     const isCurrentStabilized = isPumpRunning && (this.state.pumpRunElapsedSec >= 5);
     const hasActiveSensorFault = (effectiveOvercurrent || effectiveUndercurrent);
@@ -183,14 +246,73 @@ class HardwareSimulator {
       }
     }
 
+    // 0B. Realistic Pipeline Pressure Simulation (ADS1115) & 30-Second Cutout
+    let muniPsi = 58.0 + (Math.sin(Date.now() / 1500) * 1.5);
+    let fillPsi = 0.0;
+
+    if (this.state.simMuniPressureOverride !== null && this.state.simMuniPressureOverride !== undefined) {
+      muniPsi = this.state.simMuniPressureOverride;
+    }
+
+    if (this.state.simFillPressureOverride !== null && this.state.simFillPressureOverride !== undefined) {
+      fillPsi = this.state.simFillPressureOverride;
+    } else {
+      if (this.state.pump || this.state.pumpTimingState === 1) {
+        fillPsi = 124.0 + (Math.sin(Date.now() / 800) * 2.5);
+        if (this.state.simMuniPressureOverride === null) muniPsi -= 3.0; // Booster suction draw
+      } else if (this.state.lineValve) {
+        fillPsi = 42.0 + (Math.sin(Date.now() / 1200) * 1.0);
+      } else {
+        fillPsi = 0.0;
+      }
+    }
+
+    this.state.pressureMunicipalPsi = muniPsi;
+    this.state.pressureFillPipePsi = fillPsi;
+    this.state.pressureMunicipalVolts = 0.5 + ((muniPsi / 100.0) * 4.0);
+    this.state.pressureFillPipeVolts = 0.5 + ((fillPsi / 200.0) * 4.0);
+    this.state.municipalLowPressureAlarm = (muniPsi < 20.0 && muniPsi > 0.5);
+    this.state.fillPipeHighPressureAlarm = (fillPsi > 180.0);
+
+    // Municipal Pressure < 5 PSI 30-Second Cutout Protection
+    const isMuniUnder5 = (muniPsi < 5.0);
+    const pumpActiveOrDemanded = isPumpRunning || (this.state.fillCycleActive && effectiveLow);
+
+    if (!this.state.municipalPressureTrip) {
+      if (pumpActiveOrDemanded && isMuniUnder5) {
+        if (!this.state.municipalPressureFaultPending) {
+          this.state.municipalPressureFaultPending = true;
+          this.state.municipalPressureFaultRemainingSec = 30;
+        } else {
+          if (this.state.municipalPressureFaultRemainingSec > 0) {
+            this.state.municipalPressureFaultRemainingSec--;
+          }
+          if (this.state.municipalPressureFaultRemainingSec <= 0) {
+            this.state.municipalPressureTrip = true;
+            this.state.municipalPressureFaultPending = false;
+            this.state.alarmPulsing = false;
+            if (this.state.pumpTimingState === 1) {
+              this.state.pumpLastRunDurationSec = this.state.pumpRunElapsedSec;
+              this.state.pumpTimingState = 0;
+              this.state.pumpRunElapsedSec = 0;
+            }
+          }
+        }
+      } else if (this.state.municipalPressureFaultPending && (!isMuniUnder5 || !pumpActiveOrDemanded)) {
+        this.state.municipalPressureFaultPending = false;
+        this.state.municipalPressureFaultRemainingSec = 0;
+      }
+    }
+
     const hasCurrentFault = (this.state.pumpOvercurrentTrip || this.state.pumpUndercurrentTrip);
+    const hasSafetyTrip = (hasCurrentFault || this.state.municipalPressureTrip);
 
     // Pump Room Low Temp Alarm (<55°F) & Dedicated Relay Output
     this.state.pumpRoomLowTempAlarm = (this.state.temperatureF < 55.0);
     this.state.relayLowTempAlarm = this.state.pumpRoomLowTempAlarm;
 
     // 1. Alarm & Pulsing Relay Logic
-    if (this.state.pumpCurrentFaultPending) {
+    if (this.state.pumpCurrentFaultPending || this.state.municipalPressureFaultPending) {
       if (!this.state.alarmSilenced) {
         this.state.alarm = true;
         this.state.alarmPulsing = true;
@@ -200,7 +322,7 @@ class HardwareSimulator {
       }
     } else {
       this.state.alarmPulsing = false;
-      const alarmActive = effectiveEmpty || this.state.pumpOvercurrentTrip || this.state.pumpRoomLowTempAlarm;
+      const alarmActive = effectiveEmpty || this.state.pumpOvercurrentTrip || this.state.municipalPressureTrip || this.state.pumpRoomLowTempAlarm;
       if (alarmActive) {
         this.state.alarm = !this.state.alarmSilenced;
       } else {
@@ -263,7 +385,7 @@ class HardwareSimulator {
     // 4. Booster Pump Timers, 5-Second Start Delay & Protection
     let autoPump = false;
 
-    if (hasCurrentFault) {
+    if (hasSafetyTrip) {
       if (this.state.pumpTimingState === 1) {
         this.state.pumpLastRunDurationSec = this.state.pumpRunElapsedSec;
         this.state.pumpTimingState = 0;
@@ -309,7 +431,7 @@ class HardwareSimulator {
     this.state.pumpTimedOut = (this.state.pumpTimingState === 2);
 
     // 5. Booster Pump Manual Overrides
-    if (hasCurrentFault) {
+    if (hasSafetyTrip) {
       this.state.pump = false;
     } else if (this.state.pumpOverride === 1) {
       this.state.pump = true;
@@ -358,13 +480,17 @@ class HardwareSimulator {
       this.state.pumpCooldownRemainingSec = 0;
       this.state.pumpOvercurrentTrip = false;
       this.state.pumpUndercurrentTrip = false;
+      this.state.municipalPressureTrip = false;
       this.state.pumpCurrentFaultPending = false;
       this.state.pumpCurrentFaultRemainingSec = 0;
+      this.state.municipalPressureFaultPending = false;
+      this.state.municipalPressureFaultRemainingSec = 0;
       this.state.isOvercurrentPending = false;
       this.state.isUndercurrentPending = false;
       this.state.alarmPulsing = false;
-      this.state.alarm = false;
       this.state.alarmSilenced = false;
+      this.state.currentOverrideAmps = -1.0;
+      this.state.simCurrentOverrideAmps = null;
     }
     if (cmd.setValveOverride !== undefined) {
       this.state.valveOverride = cmd.setValveOverride;
@@ -390,6 +516,11 @@ class HardwareSimulator {
     if (cmd.setFreezeOverride !== undefined) {
       this.state.freezeOverride = cmd.setFreezeOverride;
     }
+    if (cmd.setCurrentOverride !== undefined || cmd.setPumpCurrentAmps !== undefined) {
+      const val = (cmd.setCurrentOverride !== undefined) ? cmd.setCurrentOverride : cmd.setPumpCurrentAmps;
+      this.state.currentOverrideAmps = val;
+      this.state.simCurrentOverrideAmps = (val >= 0) ? val : null;
+    }
     if (cmd.resetAllOverrides) {
       this.state.valveOverride = 0;
       this.state.pumpOverride = 0;
@@ -399,6 +530,8 @@ class HardwareSimulator {
       this.state.overcurrentOverride = 0;
       this.state.undercurrentOverride = 0;
       this.state.freezeOverride = 0;
+      this.state.currentOverrideAmps = -1.0;
+      this.state.simCurrentOverrideAmps = null;
     }
     if (cmd.emergencyStop) {
       this.state.valveOverride = 2;
@@ -416,6 +549,36 @@ class HardwareSimulator {
     }
     if (cmd.setHexapodSpeechSync !== undefined) {
       this.state.hexapodSpeechSync = Boolean(cmd.setHexapodSpeechSync);
+    }
+    if (cmd.setAudioVolume !== undefined) {
+      this.state.audioVolume = Math.max(0, Math.min(100, parseInt(cmd.setAudioVolume, 10)));
+    }
+    if (cmd.setAudioMute !== undefined) {
+      this.state.audioMuted = Boolean(cmd.setAudioMute);
+    }
+    if (cmd.toggleAudioMute) {
+      this.state.audioMuted = !this.state.audioMuted;
+    }
+    if (cmd.playAudioChime !== undefined) {
+      this.state.audioPlaying = true;
+      setTimeout(() => { if (this.isRunning) this.state.audioPlaying = false; }, 800);
+    }
+    if (cmd.playAudioSiren !== undefined) {
+      this.state.audioPlaying = true;
+    }
+    if (cmd.speakPhrase !== undefined) {
+      this.state.audioPlaying = true;
+      this.state.hexapodMouth = true;
+      setTimeout(() => {
+        if (this.isRunning) {
+          this.state.audioPlaying = false;
+          this.state.hexapodMouth = false;
+        }
+      }, 1200);
+    }
+    if (cmd.stopAudio) {
+      this.state.audioPlaying = false;
+      this.state.hexapodMouth = false;
     }
   }
 }

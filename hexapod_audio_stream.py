@@ -325,6 +325,77 @@ class WebSocketHTTPHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(str(e).encode('utf-8'))
             return
+
+        # REST Endpoint to trigger ESP32 I2S Hardware Audio Chime
+        if self.path == "/api/chime":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                body = json.loads(post_data.decode('utf-8'))
+                chime = body.get("chime", "startup")
+                send_esp32_command({"playAudioChime": chime})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "chime": chime}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(str(e).encode('utf-8'))
+            return
+
+        # REST Endpoint to trigger ESP32 I2S Hardware Siren
+        if self.path == "/api/siren":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                body = json.loads(post_data.decode('utf-8'))
+                siren = body.get("siren", "tank_empty")
+                dur = body.get("durationMs", 0)
+                send_esp32_command({"playAudioSiren": siren, "durationMs": dur})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "siren": siren}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(str(e).encode('utf-8'))
+            return
+
+        # REST Endpoint to adjust ESP32 I2S Volume or Mute
+        if self.path == "/api/volume":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                body = json.loads(post_data.decode('utf-8'))
+                if "volume" in body:
+                    send_esp32_command({"setAudioVolume": int(body["volume"])})
+                if "mute" in body:
+                    send_esp32_command({"setAudioMute": bool(body["mute"])})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(str(e).encode('utf-8'))
+            return
+
+        # REST Endpoint to stop all active ESP32 I2S Audio
+        if self.path == "/api/stop":
+            send_esp32_command({"stopAudio": True})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "stopped": True}).encode('utf-8'))
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -420,6 +491,12 @@ def main():
     parser.add_argument("--say", type=str, help="Speak custom phrase with synchronized lip-sync")
     parser.add_argument("--test-speech", action="store_true", help="Run automated speech & mouth test cycle")
     parser.add_argument("--serial", type=str, help="Serial port to connect ESP32 (e.g. COM3 or /dev/ttyUSB0)")
+    parser.add_argument("--chime", type=str, help="Trigger ESP32 I2S chime (startup, valve_open, pump_start, tank_full, warning, fault, silence, click)")
+    parser.add_argument("--siren", type=str, help="Trigger ESP32 I2S siren (tank_empty, freeze, fault, low_temp)")
+    parser.add_argument("--phrase", type=str, help="Trigger on-chip voice phrase (nominal, water_low, tank_full, freeze, critical_alarm, silenced, fault_cleared, low_temp)")
+    parser.add_argument("--volume", type=int, help="Set ESP32 I2S volume (0-100)")
+    parser.add_argument("--mute", action="store_true", help="Mute ESP32 I2S audio")
+    parser.add_argument("--unmute", action="store_true", help="Unmute ESP32 I2S audio")
     args = parser.parse_args()
 
     # Start natural eye blinking background thread
@@ -435,7 +512,23 @@ def main():
     server_thread.start()
     time.sleep(0.5)
 
-    if args.say:
+    if args.volume is not None:
+        send_esp32_command({"setAudioVolume": args.volume})
+    if args.mute:
+        send_esp32_command({"setAudioMute": True})
+    elif args.unmute:
+        send_esp32_command({"setAudioMute": False})
+
+    if args.chime:
+        print(f"[I2S AUDIO] Triggering ESP32 Chime '{args.chime}'...")
+        send_esp32_command({"playAudioChime": args.chime})
+    elif args.siren:
+        print(f"[I2S AUDIO] Triggering ESP32 Siren '{args.siren}'...")
+        send_esp32_command({"playAudioSiren": args.siren})
+    elif args.phrase:
+        print(f"[I2S AUDIO] Triggering ESP32 Robotic Speech Phrase '{args.phrase}'...")
+        send_esp32_command({"speakPhrase": args.phrase})
+    elif args.say:
         speak_text_with_lipsync(args.say)
     elif args.test_speech:
         test_phrases = [

@@ -66,6 +66,7 @@ private:
     // Header Tabs & Status
     Rect _tabDashboard;
     Rect _tabSettings;
+    Rect _btnAudioToggle;
 
     // Dashboard Buttons (Bottom Control Bar: Y=406, H=62)
     Rect _btnSilenceAlarm;
