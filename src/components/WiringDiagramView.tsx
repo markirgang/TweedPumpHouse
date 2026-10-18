@@ -95,6 +95,12 @@ export const WiringDiagramView: React.FC = () => {
                 detail: 'Flylin 5V transducers scaled by 2/3 resistor divider for 3.3V Pi GPIO. A1: Municipal (Flylin #202216-1, ASIN B0BM6F4QSJ, low alarm <35 PSI / 1.27V pin). A2: Fill Pipe (Flylin 200 PSI, 0.33V-3.00V pin).'
               },
               {
+                id: 'DHT11_TEMP',
+                name: 'DHT11 Digital Temperature Sensor',
+                type: 'Digital Input D1 (Single-Wire)',
+                detail: 'DHT11 (DH-11) digital temperature sensor monitoring pumphouse ambient temperature. Triggers freeze protection state when temperature <= 45°F (7.2°C).'
+              },
+              {
                 id: 'TANK_FLOATS',
                 name: 'Tweed Blvd Storage Tank Floats',
                 type: 'Digital Inputs D2, D3, D4',
@@ -245,7 +251,7 @@ export const WiringDiagramView: React.FC = () => {
                 <div className="grid grid-cols-4 gap-2 text-[11px]">
                   <div className="p-2 bg-slate-950 border border-blue-500/40 text-blue-300 rounded-lg text-center">
                     <span className="block font-bold">TB4-D1</span>
-                    <span className="text-[9px] text-slate-400">Outside Freeze (45°F)</span>
+                    <span className="text-[9px] text-slate-400">DHT11 Temp (&le;45°F)</span>
                   </div>
                   <div className="p-2 bg-slate-950 border border-amber-500/40 text-amber-300 rounded-lg text-center">
                     <span className="block font-bold">TB4-D2</span>

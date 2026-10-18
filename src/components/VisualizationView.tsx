@@ -415,13 +415,13 @@ export const VisualizationView: React.FC = () => {
             <span className="flex items-center gap-1.5">
               <ThermometerSnowflake className="w-4 h-4 text-blue-400" /> Outside Temperature
             </span>
-            <span className="text-[10px] font-mono text-slate-500">Pumphouse Ambient</span>
+            <span className="text-[10px] font-mono text-slate-500">DHT11 (DH-11) Sensor</span>
           </div>
           <div className={`text-2xl font-black font-mono ${isFreezing ? 'text-cyan-400' : 'text-emerald-400'}`}>
             {sensors.outsideTempF.toFixed(1)} <span className="text-xs font-normal text-slate-400">°F</span>
           </div>
           <p className="text-[10px] text-slate-400">
-            Freeze Sensor: {isFreezing ? 'CLOSED (Freezing < 45°F)' : 'OPEN (Warm > 45°F)'}
+            DHT11 Freeze Protection: {isFreezing ? 'CLOSED (Freezing \u2264 45°F)' : 'OPEN (Warm > 45°F)'}
           </p>
         </div>
       </div>

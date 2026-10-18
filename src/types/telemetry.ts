@@ -25,9 +25,9 @@ export interface SensorData {
   // Calculated tank level
   tankLevelPercent: number;  // 0 - 100%
 
-  // Freeze & Temp
-  outsideTempF: number;      // e.g. 38°F or 65°F
-  freezeSensorClosed: boolean; // True if freezing <= 45°F
+  // DHT11 (DH-11) Digital Temperature & Freeze Sensor
+  outsideTempF: number;      // Pumphouse ambient temperature via DHT11 (°F)
+  freezeSensorClosed: boolean; // True if freezing <= 45°F (7.2°C)
 
   // Pressures (Flylin Linear Transducers + 2/3 Resistor Divider for 3.3V Pi GPIO):
   municipalPressurePSI: number; // City main incoming pressure (~55 PSI)
