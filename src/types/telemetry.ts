@@ -29,16 +29,16 @@ export interface SensorData {
   outsideTempF: number;      // e.g. 38°F or 65°F
   freezeSensorClosed: boolean; // True if freezing <= 45°F
 
-  // Pressures (0-5V DC Transducer, 0-200 PSI range)
+  // Pressures (Flylin Linear Transducers + 2/3 Resistor Divider for 3.3V Pi GPIO):
   municipalPressurePSI: number; // City main incoming pressure (~55 PSI)
-  municipalPressureVolts: number; // 0 - 5.0V DC transducer signal
-  lowMunicipalPressure: boolean; // True if < 35.0 PSI (0.875V DC)
-  fillPipePressurePSI: number;  // Fill pipe line pressure (0 drained, ~50 static, ~115 pumping)
-  fillPipePressureVolts: number; // 0 - 5.0V DC transducer signal
+  municipalPressureVolts: number; // Flylin 202216-1 Pi GPIO Pin voltage (0.33V - 3.00V DC)
+  lowMunicipalPressure: boolean; // True if < 35.0 PSI (1.27V DC Pin Input)
+  fillPipePressurePSI: number;  // Fill pipe line pressure (0 drained, ~55 static, ~115 pumping)
+  fillPipePressureVolts: number; // Flylin 200 PSI Pi GPIO Pin voltage (0.33V - 3.00V DC)
 
-  // Motor / Pump Telemetry (FCS521 Current Sensor: 0-50A AC -> 0-5V DC)
+  // Motor / Pump Telemetry (FCS521 Current Sensor + 2/3 Resistor Divider for 3.3V Pi GPIO)
   motorCurrentAmps: number;  // Normal ~21.5A, low <15.0A, high >30.0A
-  motorCurrentVolts: number; // 0 - 5.0V DC FCS521 transducer signal (15A = 1.5V, 30A = 3.0V)
+  motorCurrentVolts: number; // FCS521 Pi GPIO Pin voltage (15A = 1.00V, 30A = 2.00V DC)
   pumpRunTimeSeconds: number; // Time current continuous pump run
   maxRunTimerSeconds: number; // 20 mins = 1200 seconds
   autoResetCountdownSeconds: number; // 2 hours = 7200 seconds countdown for overrun cutoff

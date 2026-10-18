@@ -169,13 +169,27 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     fillPipePressurePSI = 0.0; // Drained pipe
   }
 
-  // Transducer Voltages
-  // 0-200 PSI Pressure Transducers -> 0-5V DC (40 PSI / Volt)
-  const municipalPressureVolts = Math.min(5.0, Math.max(0.0, municipalPressurePSI / 40.0));
-  const fillPipePressureVolts = Math.min(5.0, Math.max(0.0, fillPipePressurePSI / 40.0));
+  // 2/3 Resistor Voltage Divider Scaling Factor for 3.3V Raspberry Pi GPIO / ADC Inputs:
+  // Transducer outputs (0-5V DC) pass through a 2/3 voltage divider to deliver safe 0-3.33V DC to Pi GPIO.
+  const DIVIDER_RATIO = 2 / 3;
 
-  // FCS521 Current Transducer (0-50A AC -> 0-5V DC, 10 Amps / Volt)
-  const motorCurrentVolts = Math.min(5.0, Math.max(0.0, motorCurrentAmps / 10.0));
+  // 1. Municipal Pressure (Flylin part #202216-1, ASIN B0BM6F4QSJ):
+  //    Transducer: 0 PSI = 0.5V, 50 PSI = 2.5V, 100 PSI = 4.5V (0.04 V/PSI)
+  //    Pi GPIO Pin (2/3): 0 PSI = 0.33V, 50 PSI = 1.67V, 100 PSI = 3.00V (Low alarm <35 PSI = 1.27V)
+  const rawMunicipalVolts = Math.min(5.0, Math.max(0.5, 0.5 + (municipalPressurePSI * 0.04)));
+  const municipalPressureVolts = rawMunicipalVolts * DIVIDER_RATIO;
+
+  // 2. Fill Pipe Pressure (Flylin 200 PSI Transducer):
+  //    Transducer: 0 PSI = 0.5V, 100 PSI = 2.5V, 200 PSI = 4.5V (0.02 V/PSI)
+  //    Pi GPIO Pin (2/3): 0 PSI = 0.33V, 100 PSI = 1.67V, 200 PSI = 3.00V
+  const rawFillPipeVolts = Math.min(5.0, Math.max(0.5, 0.5 + (fillPipePressurePSI * 0.02)));
+  const fillPipePressureVolts = rawFillPipeVolts * DIVIDER_RATIO;
+
+  // 3. FCS521 Pump Motor Current Transducer (0-50A AC -> 0-5V DC, 10A/V):
+  //    Transducer: 15A = 1.50V, 30A = 3.00V
+  //    Pi GPIO Pin (2/3): 15A = 1.00V, 30A = 2.00V
+  const rawMotorCurrentVolts = Math.min(5.0, Math.max(0.0, motorCurrentAmps / 10.0));
+  const motorCurrentVolts = rawMotorCurrentVolts * DIVIDER_RATIO;
 
   const lowMunicipalPressure = municipalPressurePSI < 35.0;
   const alarmRelayActive = activeFault !== null || lowMunicipalPressure;

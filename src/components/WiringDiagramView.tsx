@@ -33,7 +33,7 @@ export const WiringDiagramView: React.FC = () => {
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Route 9W Pumphouse Panel, FCS521 current transducer, 0-5V pressure sensors, shared valve relay, and Tweed Blvd tank telemetry.
+            Route 9W Pumphouse Panel, FCS521 current transducer, 2/3 resistor voltage divider for 3.3V Pi GPIO, Flylin pressure sensors, shared valve relay, and Tweed Blvd tank telemetry.
           </p>
         </div>
 
@@ -85,14 +85,14 @@ export const WiringDiagramView: React.FC = () => {
               {
                 id: 'FCS521',
                 name: 'FCS521 Current Sensor (0-50A AC)',
-                type: 'Analog Input A0 (0-5V DC)',
-                detail: 'Monitors pump motor AC current. Output 0-5V DC (10A/V). Undercurrent cutoff <15A (1.5V), Overcurrent cutoff >30A (3.0V).'
+                type: 'Analog Input A0 (2/3 Divider: 0-3.33V)',
+                detail: 'Monitors pump motor AC current. Transducer 0-5V DC scaled by 2/3 resistor divider to 0-3.33V DC for 3.3V Pi GPIO. Undercurrent cutoff <15A (1.00V pin), Overcurrent cutoff >30A (2.00V pin).'
               },
               {
                 id: 'PRESSURE_SENSORS',
-                name: 'Pressure Transducers (0-200 PSI)',
-                type: 'Analog Inputs A1 & A2 (0-5V DC)',
-                detail: '5V DC powered transducers. A1: Municipal Pressure (Low alarm <35 PSI / 0.88V). A2: Fill Pipe Pressure.'
+                name: 'Flylin Pressure Transducers',
+                type: 'Analog Inputs A1 & A2 (2/3 Divider: 0.33-3.00V)',
+                detail: 'Flylin 5V transducers scaled by 2/3 resistor divider for 3.3V Pi GPIO. A1: Municipal (Flylin #202216-1, ASIN B0BM6F4QSJ, low alarm <35 PSI / 1.27V pin). A2: Fill Pipe (Flylin 200 PSI, 0.33V-3.00V pin).'
               },
               {
                 id: 'TANK_FLOATS',
@@ -164,8 +164,8 @@ export const WiringDiagramView: React.FC = () => {
               {/* Terminal Block 2: Analog Transducer Inputs */}
               <div className="border border-slate-800 bg-slate-900/80 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold text-cyan-400 border-b border-slate-800 pb-1.5">
-                  <span>TB2: ANALOG TRANSDUCER INPUTS (0-5V DC)</span>
-                  <span className="text-slate-500 text-[10px]">FCS521 & 0-200 PSI Sensors</span>
+                  <span>TB2: ANALOG TRANSDUCER INPUTS (2/3 DIVIDER -&gt; 3.3V Pi GPIO)</span>
+                  <span className="text-slate-500 text-[10px]">FCS521 & Flylin Pressure Sensors</span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-[11px]">
@@ -174,26 +174,26 @@ export const WiringDiagramView: React.FC = () => {
                       <span>TB2-A0</span>
                       <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 rounded">FCS521</span>
                     </div>
-                    <p className="text-[9px] text-slate-400">Pump Current (0-50A AC = 0-5V DC)</p>
-                    <p className="text-[9px] text-cyan-400">Low &lt;1.5V (15A) | High &gt;3.0V (30A)</p>
+                    <p className="text-[9px] text-slate-400">Pump Current (0-50A AC = 0-3.33V Pin via 2/3 Divider)</p>
+                    <p className="text-[9px] text-cyan-400">Low &lt;1.00V (15A) | High &gt;2.00V (30A)</p>
                   </div>
 
                   <div className="p-2.5 bg-slate-950 border border-blue-500/40 text-blue-300 rounded-xl space-y-1">
                     <div className="font-bold flex justify-between">
                       <span>TB2-A1</span>
-                      <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1 rounded">0-200 PSI</span>
+                      <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1 rounded">Flylin 202216-1</span>
                     </div>
-                    <p className="text-[9px] text-slate-400">City Water Pressure (0-200 PSI = 0-5V)</p>
-                    <p className="text-[9px] text-cyan-400">Low Pressure Alarm &lt;0.88V (35 PSI)</p>
+                    <p className="text-[9px] text-slate-400">City Water Pressure (Flylin 0.33-3.00V Pin via 2/3 Divider)</p>
+                    <p className="text-[9px] text-cyan-400">Low Pressure Alarm &lt;1.27V (35 PSI)</p>
                   </div>
 
                   <div className="p-2.5 bg-slate-950 border border-cyan-500/40 text-cyan-300 rounded-xl space-y-1">
                     <div className="font-bold flex justify-between">
                       <span>TB2-A2</span>
-                      <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded">0-200 PSI</span>
+                      <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded">Flylin 200 PSI</span>
                     </div>
-                    <p className="text-[9px] text-slate-400">Fill Pipe Line Pressure (0-200 PSI = 0-5V)</p>
-                    <p className="text-[9px] text-cyan-400">0V Drained | 1.38V Static | 2.88V Pump</p>
+                    <p className="text-[9px] text-slate-400">Fill Pipe Line Pressure (Flylin 0.33-3.00V Pin via 2/3 Divider)</p>
+                    <p className="text-[9px] text-cyan-400">0.33V Drained | 1.07V Static | 1.87V Pump</p>
                   </div>
                 </div>
               </div>

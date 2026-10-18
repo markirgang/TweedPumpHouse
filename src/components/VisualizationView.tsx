@@ -362,7 +362,7 @@ export const VisualizationView: React.FC = () => {
             <span className="flex items-center gap-1.5">
               <Gauge className="w-4 h-4 text-blue-400" /> Municipal Pressure
             </span>
-            <span className="text-[10px] font-mono text-slate-500">0-200 PSI 5V Transducer</span>
+            <span className="text-[10px] font-mono text-slate-500">Flylin #202216-1 (2/3 Divider)</span>
           </div>
           <div className="text-2xl font-black font-mono text-slate-100 flex items-baseline justify-between">
             <span>{sensors.municipalPressurePSI.toFixed(1)} <span className="text-xs font-normal text-slate-400">PSI</span></span>
@@ -370,7 +370,7 @@ export const VisualizationView: React.FC = () => {
               {sensors.municipalPressureVolts.toFixed(2)} VDC
             </span>
           </div>
-          <p className="text-[10px] text-slate-400">Alarm &lt; 35 PSI (0.88V) | Normal 45-65 PSI</p>
+          <p className="text-[10px] text-slate-400">Alarm &lt; 35 PSI (1.27V Pin) | Normal ~58 PSI (1.88V Pin)</p>
         </div>
 
         {/* Card 2: Fill Pipe Pressure */}
@@ -379,7 +379,7 @@ export const VisualizationView: React.FC = () => {
             <span className="flex items-center gap-1.5">
               <Gauge className="w-4 h-4 text-cyan-400" /> Fill Pipe Pressure
             </span>
-            <span className="text-[10px] font-mono text-slate-500">0-200 PSI 5V Transducer</span>
+            <span className="text-[10px] font-mono text-slate-500">Flylin 200 PSI (2/3 Divider)</span>
           </div>
           <div className="text-2xl font-black font-mono text-cyan-300 flex items-baseline justify-between">
             <span>{sensors.fillPipePressurePSI.toFixed(1)} <span className="text-xs font-normal text-slate-400">PSI</span></span>
@@ -388,7 +388,7 @@ export const VisualizationView: React.FC = () => {
             </span>
           </div>
           <p className="text-[10px] text-slate-400">
-            {sensors.boosterPumpActive ? 'Active head ~115 PSI (2.88V)' : sensors.lineValveOpen ? 'Municipal static ~55 PSI (1.38V)' : '0 PSI (0.00V)'}
+            {sensors.boosterPumpActive ? 'Active head ~115 PSI (1.87V Pin)' : sensors.lineValveOpen ? 'Municipal static ~55 PSI (1.07V Pin)' : '0 PSI (0.33V Pin)'}
           </p>
         </div>
 
@@ -398,7 +398,7 @@ export const VisualizationView: React.FC = () => {
             <span className="flex items-center gap-1.5">
               <Zap className="w-4 h-4 text-amber-400" /> Motor Amperage (FCS521)
             </span>
-            <span className="text-[10px] font-mono text-slate-500">FCS521 0-50A 5V Transducer</span>
+            <span className="text-[10px] font-mono text-slate-500">FCS521 0-50A (2/3 Divider)</span>
           </div>
           <div className="text-2xl font-black font-mono text-amber-300 flex items-baseline justify-between">
             <span>{sensors.motorCurrentAmps.toFixed(1)} <span className="text-xs font-normal text-slate-400">A AC</span></span>
@@ -406,7 +406,7 @@ export const VisualizationView: React.FC = () => {
               {sensors.motorCurrentVolts.toFixed(2)} VDC
             </span>
           </div>
-          <p className="text-[10px] text-slate-400">Limits: Low &lt; 15.0A (1.5V) | High &gt; 30.0A (3.0V)</p>
+          <p className="text-[10px] text-slate-400">Limits: Low &lt; 15.0A (1.00V Pin) | High &gt; 30.0A (2.00V Pin)</p>
         </div>
 
         {/* Card 4: Outside Temperature & Freeze */}
