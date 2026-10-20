@@ -25,8 +25,9 @@ export interface SensorData {
   // Calculated tank level
   tankLevelPercent: number;  // 0 - 100%
 
-  // DHT11 (DH-11) Digital Temperature & Freeze Sensor
-  outsideTempF: number;      // Pumphouse ambient temperature via DHT11 (°F)
+  // DHT11 (DH-11) Digital Temperature Sensors
+  outsideTempF: number;      // Outside ambient temperature via DHT11 #1 (°F)
+  insideTempF: number;       // Pump room inside temperature via DHT11 #2 (°F)
   freezeSensorClosed: boolean; // True if freezing <= 45°F (7.2°C)
 
   // Pressures (Flylin Linear Transducers + 2/3 Resistor Divider for 3.3V Pi GPIO):

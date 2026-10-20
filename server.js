@@ -1,4 +1,5 @@
 import http from 'http';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -22,7 +23,7 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
+const requestHandler = (req, res) => {
   let filePath = path.join(DIST_DIR, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
 
   // Prevent directory traversal
@@ -55,22 +56,39 @@ const server = http.createServer((req, res) => {
       }
     });
   });
-});
+};
+
+const certPath = path.join(__dirname, 'cert.pem');
+const keyPath = path.join(__dirname, 'key.pem');
+
+let server;
+let protocol = 'http';
+
+if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+  const options = {
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath)
+  };
+  server = https.createServer(options, requestHandler);
+  protocol = 'https';
+} else {
+  server = http.createServer(requestHandler);
+}
 
 server.listen(PORT, HOST, () => {
   console.log('\n================================================================');
   console.log(' 🌊 TWEEDPUMP LOCAL NETWORK SCADA SERVER IS ACTIVE!');
   console.log('================================================================');
-  console.log(` Status: Listening on all network interfaces (0.0.0.0:${PORT})`);
+  console.log(` Status: Listening on all network interfaces (${protocol}://0.0.0.0:${PORT})`);
   console.log('\n Access the Tweedpump Controller from any device on your LAN:\n');
-  console.log(` 🏠 Local Computer:   http://localhost:${PORT}`);
+  console.log(` 🏠 Local Computer:   ${protocol}://localhost:${PORT}`);
 
   const interfaces = os.networkInterfaces();
   Object.keys(interfaces).forEach((ifaceName) => {
     if (interfaces[ifaceName]) {
       interfaces[ifaceName].forEach((iface) => {
         if (iface.family === 'IPv4' && !iface.internal) {
-          console.log(` 🌐 Network Device:   http://${iface.address}:${PORT}`);
+          console.log(` 🌐 Network Device:   ${protocol}://${iface.address}:${PORT}`);
         }
       });
     }

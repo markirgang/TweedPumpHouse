@@ -24,6 +24,7 @@ export const SensorsControlView: React.FC = () => {
     authenticate,
     setTankLevel,
     setOutsideTemp,
+    setInsideTemp,
     activeFault,
     resetFault,
     simulateFault
@@ -299,10 +300,10 @@ export const SensorsControlView: React.FC = () => {
             </div>
           </div>
 
-          {/* Slider 2: Outside Temperature */}
+          {/* Slider 2: Outside Temperature (DHT11 #1) */}
           <div className="space-y-2">
             <div className="flex justify-between text-xs font-semibold">
-              <span className="text-slate-300">Outside Temperature (Pumphouse Ambient)</span>
+              <span className="text-slate-300">Outside Ambient Temperature (DHT11 #1)</span>
               <span className={`font-mono font-bold ${sensors.freezeSensorClosed ? 'text-cyan-400' : 'text-emerald-400'}`}>
                 {sensors.outsideTempF.toFixed(1)}°F
               </span>
@@ -320,6 +321,30 @@ export const SensorsControlView: React.FC = () => {
               <span>-10°F</span>
               <span className="text-cyan-400 font-bold">45°F Threshold</span>
               <span>90°F</span>
+            </div>
+          </div>
+
+          {/* Slider 3: Pump Room Inside Temperature (DHT11 #2) */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs font-semibold">
+              <span className="text-slate-300">Pump Room Inside Temperature (DHT11 #2)</span>
+              <span className="font-mono font-bold text-amber-300">
+                {sensors.insideTempF.toFixed(1)}°F
+              </span>
+            </div>
+            <input
+              type="range"
+              min="20"
+              max="110"
+              step="1"
+              value={sensors.insideTempF}
+              onChange={(e) => setInsideTemp(parseFloat(e.target.value))}
+              className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-400"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>20°F</span>
+              <span>65°F (Normal)</span>
+              <span>110°F</span>
             </div>
           </div>
         </div>

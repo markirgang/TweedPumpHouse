@@ -43,12 +43,54 @@
   }
 }
 
+@keyframes electricPulse {
+  0% {
+    stroke-dashoffset: 30;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes drainStream {
+  0% {
+    stroke-dashoffset: 16;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pumpSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .animate-flow {
   stroke-dasharray: 8 6;
-  animation: waterFlow 0.8s linear infinite;
+  animation: waterFlow 0.6s linear infinite;
 }
 
 .animate-flow-reverse {
   stroke-dasharray: 8 6;
-  animation: waterFlow 0.8s linear infinite reverse;
+  animation: waterFlow 0.6s linear infinite reverse;
 }
+
+.animate-electric {
+  stroke-dasharray: 6 4;
+  animation: electricPulse 0.4s linear infinite;
+}
+
+.animate-drain {
+  stroke-dasharray: 4 4;
+  animation: drainStream 0.5s linear infinite;
+}
+
+.animate-pump-spin {
+  animation: pumpSpin 0.8s linear infinite;
+}
+

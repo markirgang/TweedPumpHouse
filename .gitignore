@@ -6,3 +6,5 @@ Netlify_Deploy_Tweedpump
 *.local
 .DS_Store
 *.log
+*.pem
+*.pem.bak

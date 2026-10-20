@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  tweedpump:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tweedpump_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000

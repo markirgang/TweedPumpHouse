@@ -26,6 +26,7 @@ interface TelemetryContextType {
   silenceAlarm: () => void;
   setTankLevel: (level: number) => void;
   setOutsideTemp: (tempF: number) => void;
+  setInsideTemp: (tempF: number) => void;
   simulateFault: (fault: FaultType) => void;
   addEventLog: (type: SCADAEventLog['type'], message: string) => void;
   clearEventLogs: () => void;
@@ -46,6 +47,7 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Core System Telemetry State
   const [tankLevelPercent, setTankLevelPercent] = useState<number>(85.0);
   const [outsideTempF, setOutsideTempF] = useState<number>(55.0); // > 45°F initially
+  const [insideTempF, setInsideTempF] = useState<number>(62.0); // Pump room inside ambient temp
   const [municipalPressurePSI, setMunicipalPressurePSI] = useState<number>(58.0);
   const [simulatedCurrentAmps, setSimulatedCurrentAmps] = useState<number | null>(null);
 
@@ -200,6 +202,7 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     highWaterFloat,
     tankLevelPercent,
     outsideTempF,
+    insideTempF,
     freezeSensorClosed,
     municipalPressurePSI,
     municipalPressureVolts,
@@ -478,6 +481,11 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     addEventLog('USER_ACTION', `Outside temperature set to ${tempF}°F.`);
   };
 
+  const setInsideTemp = (tempF: number) => {
+    setInsideTempF(tempF);
+    addEventLog('USER_ACTION', `Pump room inside temperature set to ${tempF}°F.`);
+  };
+
   const simulateFault = (fault: FaultType) => {
     if (fault === 'LOW_CURRENT_UNDERCURRENT') {
       setSimulatedCurrentAmps(10.5); // < 15.0A
@@ -555,6 +563,7 @@ export const TelemetryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         silenceAlarm,
         setTankLevel,
         setOutsideTemp,
+        setInsideTemp,
         simulateFault,
         addEventLog,
         clearEventLogs,
