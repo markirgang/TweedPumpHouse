@@ -1,3 +1,4 @@
+import net from 'net';
 import http from 'http';
 import https from 'https';
 import fs from 'fs';
@@ -61,34 +62,45 @@ const requestHandler = (req, res) => {
 const certPath = path.join(__dirname, 'cert.pem');
 const keyPath = path.join(__dirname, 'key.pem');
 
-let server;
-let protocol = 'http';
+const httpServer = http.createServer(requestHandler);
+let httpsServer = null;
 
 if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
   const options = {
     key: fs.readFileSync(keyPath),
     cert: fs.readFileSync(certPath)
   };
-  server = https.createServer(options, requestHandler);
-  protocol = 'https';
-} else {
-  server = http.createServer(requestHandler);
+  httpsServer = https.createServer(options, requestHandler);
 }
+
+const server = net.createServer((socket) => {
+  socket.once('data', (buffer) => {
+    socket.pause();
+    // 0x16 (22) is TLS Handshake record type
+    if (httpsServer && buffer[0] === 0x16) {
+      httpsServer.emit('connection', socket);
+    } else {
+      httpServer.emit('connection', socket);
+    }
+    socket.unshift(buffer);
+    socket.resume();
+  });
+});
 
 server.listen(PORT, HOST, () => {
   console.log('\n================================================================');
   console.log(' 🌊 TWEEDPUMP LOCAL NETWORK SCADA SERVER IS ACTIVE!');
   console.log('================================================================');
-  console.log(` Status: Listening on all network interfaces (${protocol}://0.0.0.0:${PORT})`);
+  console.log(` Status: Listening on all network interfaces (http & https on port ${PORT})`);
   console.log('\n Access the Tweedpump Controller from any device on your LAN:\n');
-  console.log(` 🏠 Local Computer:   ${protocol}://localhost:${PORT}`);
+  console.log(` 🏠 Local Computer:   http://localhost:${PORT}  (or https://localhost:${PORT})`);
 
   const interfaces = os.networkInterfaces();
   Object.keys(interfaces).forEach((ifaceName) => {
     if (interfaces[ifaceName]) {
       interfaces[ifaceName].forEach((iface) => {
         if (iface.family === 'IPv4' && !iface.internal) {
-          console.log(` 🌐 Network Device:   ${protocol}://${iface.address}:${PORT}`);
+          console.log(` 🌐 Network Device:   http://${iface.address}:${PORT}`);
         }
       });
     }
