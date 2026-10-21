@@ -291,6 +291,130 @@ export const WiringDiagramView: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Raspberry Pi 40-Pin GPIO Header Pinout Guide */}
+          <div className="border border-slate-800 bg-slate-950 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="text-sm font-extrabold uppercase text-cyan-400 flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-cyan-400" /> Raspberry Pi 40-Pin GPIO Pinout Guide (Route 9W Panel Mapping)
+              </h4>
+              <span className="text-[10px] font-mono text-slate-400">3.3V Logic Level • BCM Pin Numbering</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono border-collapse">
+                <thead>
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 text-[11px]">
+                    <th className="p-2 text-right">Physical Pin</th>
+                    <th className="p-2 text-right">Signal / Name</th>
+                    <th className="p-2 text-center bg-slate-800/80 text-cyan-300">Connected Hardware / Wiring Function</th>
+                    <th className="p-2 text-left">Signal / Name</th>
+                    <th className="p-2 text-left">Physical Pin</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-[11px]">
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-rose-400 font-bold">Pin 1</td>
+                    <td className="p-2 text-right text-rose-300">3.3V Power</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">3.3V Reference / Pull-Up Resistor Power Rail</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">5.0V Power</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">Pin 2</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-cyan-300 font-bold">Pin 3</td>
+                    <td className="p-2 text-right text-cyan-300">GPIO 2 (SDA)</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">ADS1115 ADC Sensor Bus SDA (Transducers)</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">5.0V Power</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">Pin 4</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-cyan-300 font-bold">Pin 5</td>
+                    <td className="p-2 text-right text-cyan-300">GPIO 3 (SCL)</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">ADS1115 ADC Sensor Bus SCL (Transducers)</td>
+                    <td className="p-2 text-left text-slate-500">Ground</td>
+                    <td className="p-2 text-left text-slate-500 font-bold">Pin 6</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-emerald-400 font-bold">Pin 7</td>
+                    <td className="p-2 text-right text-emerald-300">GPIO 4</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">Outdoor Freeze Temp Sensor D1 (Single-Wire)</td>
+                    <td className="p-2 text-left text-slate-400">GPIO 14 (TX)</td>
+                    <td className="p-2 text-left text-slate-400 font-bold">Pin 8</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-slate-500">Ground</td>
+                    <td className="p-2 text-right text-slate-500">Ground</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">Common System Ground Rail</td>
+                    <td className="p-2 text-left text-slate-400">GPIO 15 (RX)</td>
+                    <td className="p-2 text-left text-slate-400 font-bold">Pin 10</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-cyan-400 font-bold">Pin 11</td>
+                    <td className="p-2 text-right text-cyan-300">GPIO 17</td>
+                    <td className="p-2 text-center text-emerald-400 font-bold bg-slate-900/40">SSR-1 Solenoid Valve Control (NC Line / NO Drain)</td>
+                    <td className="p-2 text-left text-cyan-300 font-bold">GPIO 18</td>
+                    <td className="p-2 text-left text-cyan-400 font-bold">Pin 12</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-cyan-400 font-bold">Pin 13</td>
+                    <td className="p-2 text-right text-cyan-300">GPIO 27</td>
+                    <td className="p-2 text-center text-cyan-400 font-bold bg-slate-900/40">SSR-2 Heavy-Duty Booster Pump Relay Pilot Output</td>
+                    <td className="p-2 text-left text-slate-500">Ground</td>
+                    <td className="p-2 text-left text-slate-500 font-bold">Pin 14</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-rose-400 font-bold">Pin 15</td>
+                    <td className="p-2 text-right text-rose-300">GPIO 22</td>
+                    <td className="p-2 text-center text-rose-400 font-bold bg-slate-900/40">5V Opto-Relay Channel (Alarm Horn Trigger)</td>
+                    <td className="p-2 text-left text-amber-300 font-bold">GPIO 23</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">Pin 16</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-rose-400 font-bold">Pin 17</td>
+                    <td className="p-2 text-right text-rose-300">3.3V Power</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">TB4 Relay Isolated Contact 3.3V DC Power Bus</td>
+                    <td className="p-2 text-left text-amber-300 font-bold">GPIO 24</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">Pin 18</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-amber-300 font-bold">Pin 19</td>
+                    <td className="p-2 text-right text-amber-300">GPIO 10</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">High Float Switch (TB4-D2 110VAC Relay Contact)</td>
+                    <td className="p-2 text-left text-slate-500">Ground</td>
+                    <td className="p-2 text-left text-slate-500 font-bold">Pin 20</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-rose-300 font-bold">Pin 21</td>
+                    <td className="p-2 text-right text-rose-300">GPIO 9</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">Low Float Switch (TB4-D3 110VAC Relay Contact)</td>
+                    <td className="p-2 text-left text-purple-300 font-bold">GPIO 25</td>
+                    <td className="p-2 text-left text-purple-400 font-bold">Pin 22</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-purple-300 font-bold">Pin 22</td>
+                    <td className="p-2 text-right text-purple-300">GPIO 25</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">Bottom Float Switch (TB4-D4 110VAC Relay Contact)</td>
+                    <td className="p-2 text-left text-slate-400">GPIO 8</td>
+                    <td className="p-2 text-left text-slate-400 font-bold">Pin 24</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-slate-500">Ground</td>
+                    <td className="p-2 text-right text-slate-500">Ground</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">Common Ground Return</td>
+                    <td className="p-2 text-left text-amber-300 font-bold">GPIO 5</td>
+                    <td className="p-2 text-left text-amber-400 font-bold">Pin 29</td>
+                  </tr>
+                  <tr className="hover:bg-slate-900/50">
+                    <td className="p-2 text-right text-amber-400 font-bold">Pin 29</td>
+                    <td className="p-2 text-right text-amber-300">GPIO 5</td>
+                    <td className="p-2 text-center text-slate-300 bg-slate-900/40">Pumphouse Indoor Temp Sensor D5 (Single-Wire)</td>
+                    <td className="p-2 text-left text-slate-500">Ground</td>
+                    <td className="p-2 text-left text-slate-500 font-bold">Pin 30</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
