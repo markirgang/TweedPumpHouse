@@ -21,6 +21,32 @@ export const WiringDiagramView: React.FC = () => {
     window.print();
   };
 
+  const handleExportCSV = () => {
+    const csvRows = [
+      ["Subsystem / Module", "Pin / Terminal", "Signal Name", "Connected Device", "Interface Range", "Function Description"],
+      ["Raspberry Pi PLC", "5.0V USB Port", "5.0V DC Power In", "WYZE WiFi Smart Relay", "5.0V DC Input", "Main PLC Controller Power. WYZE relay allows remote power cycle/reboot over Wi-Fi."],
+      ["FCS521 Current Sensor", "Analog In A0", "Pump AC Current (0-50A)", "2/3 Voltage Divider -> Pi GPIO", "0-3.33V DC (from 0-5V Transducer)", "Monitors booster pump motor current. Low <15A (1.00V pin) / High >30A (2.00V pin) cutoff."],
+      ["Flylin Pressure Sensor 1", "Analog In A1", "City Water Pressure (0-100 PSI)", "Flylin #202216-1 (ASIN B0BM6F4QSJ)", "0.33-3.00V DC (via 2/3 Divider)", "Monitors municipal incoming pressure. Low pressure alarm <35 PSI (1.27V pin)."],
+      ["Flylin Pressure Sensor 2", "Analog In A2", "Fill Pipe Pressure (0-200 PSI)", "Flylin 200 PSI Transducer", "0.33-3.00V DC (via 2/3 Divider)", "Monitors fill pipe pressure. Static 1.07V pin / Pumping 1.87V pin / Drained 0.33V pin."],
+      ["SSR-1 Valve Driver", "GPIO Pin 17", "3.3VDC Trigger Out", "110VAC Solenoids (Line & Drain)", "3.3VDC In / 110VAC Out", "Solid state relay switching 110VAC to NC Line Valve & NO Drain Valve solenoids."],
+      ["SSR-2 Pump Driver", "GPIO Pin 27", "3.3VDC Trigger Out", "110VAC Pump Relay Coil (K2)", "3.3VDC In / 110VAC Out", "Solid state relay energizing 110VAC Coil of Heavy-Duty Booster Pump Relay."],
+      ["Heavy Duty Pump Relay", "110VAC Coil", "230V/110V Motor Contact", "Route 9W Booster Pump Motor", "230V/110V AC High Current", "Power contactor switching main AC power to 9W booster pump motor."],
+      ["5V Opto-Relay Board", "GPIO Pin 22", "3.3VDC Trigger Out", "Alarm Horn / Siren", "5V DC Coil / Dry Contact", "Opto-isolated relay switching local pumphouse alarm horn."],
+      ["DHT11 Temp Sensor 1", "GPIO Pin D1", "Single-Wire Digital In", "Outside Ambient Sensor", "Digital Single-Wire", "Monitors outside temperature for freeze protection (<= 45°F / 7.2°C)."],
+      ["DHT11 Temp Sensor 2", "GPIO Pin D5", "Single-Wire Digital In", "Inside Pumphouse Sensor", "Digital Single-Wire", "Monitors inside pumphouse climate."],
+      ["Tank Isolation Relays", "GPIO Pins D1-D5", "Isolated Dry Contacts", "110VAC Field Float Coils", "110VAC Coils / 3.3V Dry Contact", "Field float switches energize 110VAC coils, closing dry contacts connected to Pi GPIOs."]
+    ];
+
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.map(val => `"${val.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Tweedpump_Wiring_Pinouts_Parts_List.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Header Banner */}
@@ -43,7 +69,15 @@ export const WiringDiagramView: React.FC = () => {
             className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition shadow"
           >
             <Printer className="w-4 h-4 text-cyan-400" />
-            <span>Print Schematic</span>
+            <span>Export PDF Schematic</span>
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition shadow"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV Spreadsheet</span>
           </button>
         </div>
       </div>
