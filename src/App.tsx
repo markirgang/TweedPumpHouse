@@ -5,9 +5,10 @@ import { VisualizationView } from './components/VisualizationView';
 import { SensorsControlView } from './components/SensorsControlView';
 import { LogicSimulationView } from './components/LogicSimulationView';
 import { WiringDiagramView } from './components/WiringDiagramView';
+import { GuideInstructionsView } from './components/GuideInstructionsView';
 
 export const AppContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'visualization' | 'controls' | 'simulation' | 'wiring'>('visualization');
+  const [activeTab, setActiveTab] = useState<'visualization' | 'controls' | 'simulation' | 'wiring' | 'instructions'>('visualization');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
@@ -20,6 +21,7 @@ export const AppContent: React.FC = () => {
         {activeTab === 'controls' && <SensorsControlView />}
         {activeTab === 'simulation' && <LogicSimulationView />}
         {activeTab === 'wiring' && <WiringDiagramView />}
+        {activeTab === 'instructions' && <GuideInstructionsView />}
       </main>
 
       {/* Footer */}

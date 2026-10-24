@@ -14,12 +14,13 @@ import {
   Volume2,
   VolumeX,
   Bell,
-  FileText
+  FileText,
+  BookOpen
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'visualization' | 'controls' | 'simulation' | 'wiring';
-  setActiveTab: (tab: 'visualization' | 'controls' | 'simulation' | 'wiring') => void;
+  activeTab: 'visualization' | 'controls' | 'simulation' | 'wiring' | 'instructions';
+  setActiveTab: (tab: 'visualization' | 'controls' | 'simulation' | 'wiring' | 'instructions') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
@@ -281,6 +282,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
           >
             <FileText className="w-4 h-4 text-cyan-400" />
             <span>Wiring Diagram & Schematic</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('instructions')}
+            aria-label="Guide & Instructions Tab"
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              activeTab === 'instructions'
+                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 glow-cyan'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-cyan-400" />
+            <span>Guide & Instructions</span>
           </button>
         </nav>
       </div>
